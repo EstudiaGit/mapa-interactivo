@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mapa Interactivo – Next.js + Leaflet
 
-## Getting Started
+Aplicación web moderna para la gestión y visualización interactiva de ubicaciones en un mapa, desarrollada con Next.js, React y Leaflet. Incluye chat asistido por IA y una arquitectura preparada para escalar y añadir nuevas funcionalidades.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🚀 Tecnologías Principales
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Framework:** [Next.js 16](https://nextjs.org/) (App Router)
+- **Frontend:** [React 19](https://react.dev/)
+- **Mapas:** [Leaflet](https://leafletjs.com/) + [react-leaflet](https://react-leaflet.js.org/)
+- **Estilos:** [Tailwind CSS](https://tailwindcss.com/)
+- **Validación:** [Zod](https://zod.dev/)
+- **Tipado:** [TypeScript](https://www.typescriptlang.org/)
+- **IA/Chat:** [@google/genai](https://www.npmjs.com/package/@google/genai), [@modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📁 Estructura del Proyecto
 
-## Learn More
+- `app/` – Páginas principales, layout global y estilos
+  - `page.tsx`: Página principal (orquesta Sidebar, Map y ChatWindow)
+  - `layout.tsx`: Layout raíz y fuentes globales
+  - `globals.css`: Estilos globales y Tailwind
+- `components/` – Componentes reutilizables
+  - `Map.tsx`: Contenedor del mapa interactivo (integración con Leaflet en próximos hitos)
+  - `Sidebar.tsx`: Listado de ubicaciones (mock data, integración futura con Zustand)
+  - `ChatWindow.tsx`: Chat flotante asistido por IA
+- `public/` – Recursos estáticos (SVGs, favicon)
+- `hooks/` – (Preparado para hooks personalizados)
+- Configuración:
+  - `package.json`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`, `.gitignore`
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🛠️ Instalación y Desarrollo
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Instala dependencias:**
+   ```sh
+   npm install
+   ```
+2. **Desarrolla localmente:**
+   ```sh
+   npm run dev
+   ```
+   Accede a [http://localhost:3000](http://localhost:3000)
 
-## Deploy on Vercel
+3. **Build para producción:**
+   ```sh
+   npm run build
+   ```
+4. **Inicia el servidor de producción:**
+   ```sh
+   npm start
+   ```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🌐 Despliegue
+
+- **Vercel:** Compatible y recomendado para despliegue serverless.
+- **Otros entornos:** Next.js soporta despliegue en cualquier plataforma Node.js.
+
+---
+
+## ✨ Características
+
+- **Mapa interactivo:** Preparado para integración con Leaflet y markers dinámicos.
+- **Gestión de ubicaciones:** Sidebar con mock data, preparado para integración con estado global.
+- **Chat asistente:** Ventana flotante para interacción con IA (búsqueda, ayuda, gestión de ubicaciones).
+- **Arquitectura escalable:** Código modular, tipado y preparado para futuras integraciones (Zustand, APIs externas).
+- **Estilos modernos:** Tailwind CSS y fuentes optimizadas.
+
+---
+
+## 🤝 Contribución
+
+- Sigue las convenciones de Next.js, React y TypeScript.
+- Mantén el código modular y documentado.
+- Pull requests y sugerencias son bienvenidas.
+
+---
+
+## 📄 Licencia
+
+MIT
+
+---
