@@ -38,3 +38,6 @@ next-env.d.ts
 
 # Vercel deployment
 .vercel
+
+#docs
+repomix-mapa-interactivo.md

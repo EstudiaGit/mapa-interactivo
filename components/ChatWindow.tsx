@@ -1,5 +1,3 @@
-// components/ChatWindow.tsx
-
 "use client";
 
 import { type FC, type FormEvent } from "react";
@@ -8,10 +6,8 @@ import { type FC, type FormEvent } from "react";
  * Clases de estilo reutilizables para el componente ChatWindow.
  */
 const STYLES = {
-  container:
-    "fixed bottom-5 right-5 w-96 bg-gray-800 text-white rounded-lg shadow-xl flex flex-col h-[500px] z-10",
   header:
-    "bg-gray-700 p-3 rounded-t-lg cursor-pointer hover:bg-gray-650 transition-colors",
+    "bg-gray-700 p-3 rounded-t-lg cursor-pointer hover:bg-gray-600 transition-colors",
   headerTitle: "font-bold text-lg",
   messagesArea: "flex-grow p-4 overflow-y-auto",
   placeholder: "text-center text-gray-400 text-sm",
@@ -25,66 +21,68 @@ const STYLES = {
 } as const;
 
 /**
- * Componente ChatWindow - Ventana flotante de chat con el asistente de IA.
- *
- * @component
- * @description
- * Interfaz de chat flotante que permite al usuario interactuar con el asistente de IA
- * para realizar búsquedas y gestionar ubicaciones en el mapa.
- *
- * Características:
- * - Posicionamiento fixed en la esquina inferior derecha
- * - Área de mensajes scrolleable
- * - Input con validación visual
- * - Icono SVG optimizado para el botón de envío
- *
- * @example
- * ```tsx
- * <ChatWindow />
- * ```
- *
- * @remarks
- * - Fase actual: UI estática (Hito 1)
- * - Próxima fase: Integración con API de OpenAI y gestión de estado (Hito 3)
- *
- * @todo Hito 3:
- * - Implementar useState para mensajes
- * - Conectar con API de OpenAI
- * - Añadir indicador de "escribiendo..."
- * - Implementar scroll automático al último mensaje
- * - Añadir funcionalidad de minimizar/maximizar
+ * Props para el componente ChatWindow, necesarias para el control responsive.
  */
-const ChatWindow: FC = () => {
+interface ChatWindowProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+/**
+ * Componente ChatWindow - Ventana de chat adaptable para móvil y escritorio.
+ * En móvil se comporta como un modal de pantalla completa, en escritorio como una ventana flotante.
+ */
+const ChatWindow: FC<ChatWindowProps> = ({ isOpen, onClose }) => {
   /**
    * Maneja el envío del formulario de chat.
    * @param e - Evento del formulario
-   * @todo Implementar lógica de envío de mensajes en Hito 3
    */
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Preparado para: sendMessage(inputValue)
+    // La lógica de envío de mensajes se implementará en el Hito 3
   };
 
   return (
     <aside
-      className={STYLES.container}
-      role="complementary"
-      aria-label="Ventana de chat con asistente"
+      className={`
+        fixed
+        bg-gray-800 text-white shadow-xl flex flex-col
+        transition-all duration-300 ease-in-out
+
+        // --- Estilos para Móvil (Bottom Sheet) ---
+            bottom-0 left-0 right-0         // 1. Lo anclamos a la parte inferior y a los lados
+            h-[60vh]                        // 2. Le damos el 90% de la altura del viewport
+            rounded-t-2xl                   // 3. Redondeamos las esquinas superiores
+            border-t border-gray-700        // 4. Añadimos un borde sutil arriba
+            z-50
+            transform ${isOpen ? "translate-y-0" : "translate-y-full"}
+
+        // Estilos para Desktop (md:): se convierte en una ventana flotante
+        md:inset-auto md:bottom-5 md:right-5
+        md:w-96 md:h-[500px] md:rounded-lg md:z-10
+        md:translate-y-0
+      `}
+      role="dialog"
+      aria-modal="true"
+      aria-hidden={!isOpen}
+      aria-labelledby="chat-title"
     >
-      {/* Cabecera del Chat */}
-      <header className={STYLES.header} role="banner">
+      {/* Cabecera del Chat con botón de cierre para móvil */}
+      <header className={`${STYLES.header} flex justify-between items-center`}>
         <h2 className={STYLES.headerTitle} id="chat-title">
           Chat con el Mapa
         </h2>
+        <button
+          onClick={onClose}
+          className="md:hidden text-gray-400 hover:text-white text-2xl leading-none"
+          aria-label="Cerrar chat"
+        >
+          &times;
+        </button>
       </header>
 
       {/* Área de Mensajes */}
-      <div
-        className={STYLES.messagesArea}
-        role="log"
-        aria-live="polite"
-        aria-label="Historial de mensajes"
-      >
+      <div className={STYLES.messagesArea} role="log">
         <div className={STYLES.placeholder}>
           <p>Pregúntale al mapa...</p>
           <p className={STYLES.exampleText}>
