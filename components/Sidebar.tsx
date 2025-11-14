@@ -2,7 +2,7 @@
 
 "use client";
 
-import { type FC } from "react";
+import { type FC, useEffect, useState } from "react";
 
 // Interfaz para el tipado fuerte de nuestras ubicaciones
 interface Location {
@@ -42,30 +42,51 @@ interface SidebarProps {
 }
 
 const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
+  // Evitar acceso a window en SSR: detectar móvil en cliente
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   return (
     <aside
       className={`
-        absolute top-0 left-0 h-full w-80 bg-gray-800 p-4 text-white
-        md:relative md:w-96
-        z-40 flex flex-col
-        flex-shrink-0
+        absolute top-0 left-0 h-full bg-gray-800 text-white
+        ${isOpen ? "p-4 z-40 pointer-events-auto" : "p-0 z-0 pointer-events-none"}
+        flex flex-col flex-shrink-0
         transform transition-transform duration-300 ease-in-out
-        ${isOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0
+        // Mobile width
+        w-80 ${isOpen ? "translate-x-0" : "-translate-x-full"}
+        // Desktop behavior: occupy layout only when open
+        ${isOpen ? "md:relative md:w-96 md:translate-x-0" : "md:absolute md:w-0 md:-translate-x-full md:p-0"}
       `}
-      aria-hidden={
-        !isOpen && typeof window !== "undefined" && window.innerWidth < 768
-      }
+      aria-hidden={!isOpen}
     >
       {/* Encabezado con título y botón de cierre para móvil */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Mis Direcciones</h2>
-        <button
-          onClick={onClose}
-          className="md:hidden text-gray-400 hover:text-white text-2xl"
-          aria-label="Cerrar menú"
-        >
-          &times;
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Botón de ocultar para escritorio */}
+          <button
+            onClick={onClose}
+            className="hidden md:inline-flex text-gray-300 hover:text-white text-sm px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
+            aria-label="Ocultar barra lateral"
+            title="Ocultar"
+          >
+            Ocultar
+          </button>
+          {/* Botón de cierre para móvil */}
+          <button
+            onClick={onClose}
+            className="md:hidden text-gray-400 hover:text-white text-2xl"
+            aria-label="Cerrar menú"
+          >
+            &times;
+          </button>
+        </div>
       </div>
 
       {/* Campo de Búsqueda */}

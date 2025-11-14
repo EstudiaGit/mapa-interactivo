@@ -59,7 +59,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ isOpen, onClose }) => {
 
         // Estilos para Desktop (md:): se convierte en una ventana flotante
         md:inset-auto md:bottom-5 md:right-5
-        md:w-96 md:h-[500px] md:rounded-lg md:z-10
+        md:w-96 md:h-[500px] md:rounded-lg md:z-50
         md:translate-y-0
       `}
       role="dialog"

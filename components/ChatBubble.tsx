@@ -11,7 +11,7 @@ const ChatBubble: FC<ChatBubbleProps> = ({ onClick }) => {
     <button
       onClick={onClick}
       // Clave: md:hidden -> Solo visible en móvil
-      className="md:hidden fixed bottom-5 right-5 z-20 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg transition-transform hover:scale-110"
+      className="md:hidden fixed bottom-5 right-5 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 shadow-lg transition-transform hover:scale-110"
       aria-label="Abrir chat"
     >
       <svg

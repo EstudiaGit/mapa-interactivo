@@ -15,7 +15,7 @@ const HomePage: FC = () => {
 
   return (
     <>
-      <MenuButton onClick={() => setSidebarOpen(true)} />
+      {!isSidebarOpen && <MenuButton onClick={() => setSidebarOpen(true)} />}
       {/* 3. Mostrar el ChatBubble en móvil cuando el chat está cerrado */}
       {!isChatOpen && <ChatBubble onClick={() => setChatOpen(true)} />}
 

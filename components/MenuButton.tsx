@@ -10,7 +10,7 @@ const MenuButton: FC<MenuButtonProps> = ({ onClick }) => {
   return (
     <button
       onClick={onClick}
-      className="md:hidden fixed top-4 left-4 z-30 bg-gray-800 p-2 rounded-md text-white hover:bg-gray-700 transition-colors"
+      className="fixed top-4 left-4 z-30 bg-gray-800 p-2 rounded-md text-white hover:bg-gray-700 transition-colors"
       aria-label="Abrir menú de direcciones"
     >
       <svg
