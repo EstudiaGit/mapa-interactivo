@@ -3,27 +3,33 @@
 //   npm install zustand
 
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 
 export type MarkerId = string;
 
-export type MapMarker = {
+export type Coordinates = { lat: number; lng: number };
+
+export type AddressEntry = {
   id: MarkerId;
-  lat: number;
-  lng: number;
-  title?: string;
+  name: string;
+  description: string;
+  address: string;
+  CP: string;
+  coordinates: Coordinates;
 };
 
 export type MapState = {
-  markers: MapMarker[];
+  markers: AddressEntry[];
   selectedId: MarkerId | null;
   // view state (opcional)
   center: { lat: number; lng: number } | null;
   zoom: number | null;
 
   // actions
-  addMarker: (marker: Omit<MapMarker, "id"> & { id?: MarkerId }) => MarkerId;
+  addMarker: (entry: Omit<AddressEntry, "id"> & { id?: MarkerId }) => MarkerId;
   removeMarker: (id: MarkerId) => void;
-  renameMarker: (id: MarkerId, title: string) => void;
+  renameMarker: (id: MarkerId, name: string) => void; // renombrar por "name"
+  updateMarker: (id: MarkerId, patch: Partial<Pick<AddressEntry, "name" | "description" | "address" | "CP">>) => void;
   setCenter: (lat: number, lng: number) => void;
   setZoom: (zoom: number) => void;
   selectMarker: (id: MarkerId | null) => void;
@@ -38,33 +44,79 @@ function genId(): MarkerId {
   return `m_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
 }
 
-export const useMapStore = create<MapState>((set, get) => ({
-  markers: [],
-  selectedId: null,
-  center: null,
-  zoom: null,
+export const useMapStore = create<MapState>()(
+  persist(
+    (set, get) => ({
+      markers: [],
+      selectedId: null,
+      center: null,
+      zoom: null,
 
-  addMarker: (marker) => {
-    const id = marker.id ?? genId();
-    const newMarker: MapMarker = { id, lat: marker.lat, lng: marker.lng, title: marker.title };
-    set((s) => ({ markers: [...s.markers, newMarker] }));
-    return id;
-  },
+      addMarker: (entry) => {
+        const id = entry.id ?? genId();
+        const newEntry: AddressEntry = {
+          id,
+          name: entry.name,
+          description: entry.description,
+          address: entry.address,
+          CP: entry.CP,
+          coordinates: entry.coordinates,
+        };
+        set((s) => ({ markers: [...s.markers, newEntry] }));
+        return id;
+      },
 
-  removeMarker: (id) => set((s) => ({
-    markers: s.markers.filter((m) => m.id !== id),
-    selectedId: s.selectedId === id ? null : s.selectedId,
-  })),
+      removeMarker: (id) => set((s) => ({
+        markers: s.markers.filter((m) => m.id !== id),
+        selectedId: s.selectedId === id ? null : s.selectedId,
+      })),
 
-  renameMarker: (id, title) => set((s) => ({
-    markers: s.markers.map((m) => (m.id === id ? { ...m, title } : m)),
-  })),
+      renameMarker: (id, name) => set((s) => ({
+        markers: s.markers.map((m) => (m.id === id ? { ...m, name } : m)),
+      })),
 
-  setCenter: (lat, lng) => set({ center: { lat, lng } }),
-  setZoom: (zoom) => set({ zoom }),
-  selectMarker: (id) => set({ selectedId: id }),
-  clear: () => set({ markers: [], selectedId: null }),
-}));
+      updateMarker: (id, patch) => set((s) => ({
+        markers: s.markers.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      })),
+
+      setCenter: (lat, lng) => set({ center: { lat, lng } }),
+      setZoom: (zoom) => set({ zoom }),
+      selectMarker: (id) => set({ selectedId: id }),
+      clear: () => set({ markers: [], selectedId: null }),
+    }),
+    {
+      name: "map-store",
+      version: 3,
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        markers: state.markers,
+        selectedId: state.selectedId,
+        center: state.center,
+        zoom: state.zoom,
+      }),
+      migrate: (persistedState: any, version) => {
+        if (!persistedState) return persistedState;
+        if (version < 2 && Array.isArray(persistedState.markers)) {
+          // Transformar del esquema antiguo {id, lat, lng, title?} al nuevo AddressEntry
+          const migrated = {
+            ...persistedState,
+            markers: persistedState.markers.map((m: any) => ({
+              id: m.id ?? genId(),
+              name: m.title ?? "(Sin título)",
+              description: "",
+              address: "",
+              CP: "",
+              coordinates: { lat: m.lat, lng: m.lng },
+            })),
+          };
+          return migrated;
+        }
+        // v2 -> v3: simplemente asegurar que center/zoom existan o queden como están
+        return persistedState;
+      },
+    }
+  )
+);
 
 // Sugerencias de integración (próxima sesión):
 // - En MapLeaflet: usar useMapEvents para onClick añadir marker con addMarker.

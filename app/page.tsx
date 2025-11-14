@@ -24,7 +24,7 @@ const HomePage: FC = () => {
         role="application"
       >
         <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <Map />
+        <Map sidebarOpen={isSidebarOpen} />
       </div>
 
       {/* 4. Pasar el estado y el controlador de cierre al ChatWindow */}

@@ -3,6 +3,21 @@
 Fecha: YYYY-MM-DD (actualiza con tu fecha actual)
 
 ## Resumen
+
+- Estado actual (post-Zustand/Markers/UX):
+  - Estado global con Zustand + persistencia (markers, selectedId, center, zoom).
+  - Esquema AddressEntry: { id, name, description, address, CP, coordinates { lat, lng } } con migración desde el modelo antiguo.
+  - Mapa:
+    - Click añade marcador, selección centra con flyTo y resalta con círculo.
+    - Iconos de Leaflet servidos desde /public y configurados con L.Icon.Default.mergeOptions.
+    - invalidateSize al abrir/cerrar Sidebar.
+    - Vista (center/zoom) persistida.
+  - Sidebar:
+    - Lista 100% conectada a la store: seleccionar, eliminar, renombrar y editar completo (modal) e inline (name/description/address/CP) con validaciones.
+    - Búsqueda por name, description, address, CP y coordenadas.
+    - Importar/Exportar JSON con el formato acordado.
+  - Toasts no bloqueantes para feedback de acciones.
+
 - Integración de Leaflet de forma SSR-safe con Next App Router:
   - Dynamic import (ssr: false) en `components/Map.tsx`.
   - Montaje diferido en cliente y key única en `components/MapLeaflet.tsx` para evitar reuso del contenedor con Hot Reload.
@@ -40,6 +55,19 @@ Fecha: YYYY-MM-DD (actualiza con tu fecha actual)
   - `z-50` (o `md:z-50`) para quedar por encima del mapa.
 
 ## Problemas encontrados y soluciones
+
+- 404 en iconos de Leaflet (`/marker-icon.png`, `/marker-shadow.png`).
+  - Solución: copiar assets a `public/` y configurar `L.Icon.Default.mergeOptions` con rutas absolutas.
+- Warning de keys en React al renderizar marcador + círculo.
+  - Solución: envolver con `<Fragment key={m.id}>` y quitar `key` del `<Marker>` interior.
+- Invalid LatLng tras migrar a AddressEntry.
+  - Causa: se usaban `m.lat/m.lng` en lugar de `m.coordinates.lat/lng` en `SelectedMarkerFollower`.
+  - Solución: actualizar referencias.
+- Bucle de actualizaciones al persistir center/zoom.
+  - Solución: inicialización idempotente con ref; consolidar `moveend/zoomend` y actualizar ambos estados juntos.
+- `ToastContainer` en layout como dynamic con `ssr:false` (no permitido en Server Component).
+  - Solución: importar directamente el Client Component; Next creará automáticamente el boundary.
+
 - Hydration mismatch por usar `window.innerWidth` en SSR para `aria-hidden` del Sidebar.
   - Solución: detectar mobile con `useEffect`, estado `isMobile`, y usarlo en cliente; primer render consistente con SSR.
 - React 19 + react-leaflet en dev: `Map container is being reused by another instance`.
@@ -59,6 +87,25 @@ Fecha: YYYY-MM-DD (actualiza con tu fecha actual)
 - UX Sidebar: micro-animaciones, sombra/borde, foco accesible al abrir.
 
 ## Plan de prueba
+
+Pruebas funcionales (manuales)
+- Mapa:
+  - Click añade marcador y abre popup.
+  - Seleccionar desde Sidebar centra y resalta marcador.
+  - Mover/zoom actualiza center/zoom y persiste tras recargar.
+  - Abrir/cerrar Sidebar no deja tiles en blanco (invalidateSize).
+- Sidebar:
+  - Lista muestra markers reales; búsqueda por name/description/address/CP/coords.
+  - Eliminar con confirmación y toast de éxito.
+  - Editar con modal: validaciones (name obligatorio, CP válido), accesibilidad (ESC, aria-live), confirmación al cerrar sin guardar.
+  - Edición inline: click-to-edit, Enter/blur guarda, Escape cancela; validación ligera (name, CP).
+  - Importar JSON: formato requerido; toasts de éxito/error.
+  - Exportar JSON: descarga direcciones.json y toast de éxito.
+
+Pruebas de regresión
+- Hot Reload sin errores de Leaflet.
+- Layout sin superposiciones (z-index chat/mapa) y sin bloqueo de eventos al cerrar Sidebar.
+
 - Ejecutar `npm run dev` (Turbopack) y validar:
   - El mapa carga sin errores y con controles de zoom a la derecha.
   - Ocultar/mostrar Sidebar en desktop y móvil; mapa ocupa full screen al ocultar.

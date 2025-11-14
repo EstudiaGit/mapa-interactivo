@@ -52,14 +52,16 @@ const MapLeaflet = dynamic(() => import("@/components/MapLeaflet"), {
  * - Implementar eventos de click en el mapa
  * - Añadir controles de zoom y capas
  */
-const Map: FC = () => {
+type MapProps = { sidebarOpen?: boolean };
+
+const Map: FC<MapProps> = ({ sidebarOpen }) => {
   return (
     <main
       className="flex-grow h-screen bg-gray-600 z-0"
       role="main"
       aria-label="Área del mapa interactivo"
     >
-      <MapLeaflet />
+      <MapLeaflet sidebarOpen={sidebarOpen} />
     </main>
   );
 };
