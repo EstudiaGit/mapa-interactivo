@@ -88,6 +88,16 @@ Fecha: YYYY-MM-DD (actualiza con tu fecha actual)
 
 ## Plan de prueba
 
+## Evaluación: Integración con Idealista (Apify)
+- Opción recomendada para demo: Actor `igolaizola/idealista-scraper` en Apify.
+- Dos caminos:
+  - Live (API route servidor + modal de filtros) con APIFY_TOKEN en server env.
+  - Offline (importar JSON exportado de Apify) reutilizando Import JSON existente.
+- Mapeo a AddressEntry y riesgos (límites de free tier, fallos del actor, datos sin lat/lng con geocoding fallback).
+- Ver detalles en docs/IDEALISTA_INTEGRATION.md.
+
+
+
 Pruebas funcionales (manuales)
 - Mapa:
   - Click añade marcador y abre popup.

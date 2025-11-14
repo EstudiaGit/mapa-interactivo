@@ -30,7 +30,8 @@ export default function ToastContainer() {
                 ? "bg-red-600 border-red-500"
                 : "bg-gray-800 border-gray-700"
             }`}
-            role="status"
+            role={t.type === "error" ? "alert" : "status"}
+            aria-live={t.type === "error" ? "assertive" : "polite"}
           >
             <div className="flex items-start gap-3">
               <div className="flex-1 text-sm">{t.message}</div>

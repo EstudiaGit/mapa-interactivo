@@ -70,6 +70,25 @@ function SelectedMarkerFollower() {
   return null;
 }
 
+function CenterZoomFollower() {
+  const map = useMap();
+  const center = useMapStore((s) => s.center);
+  const zoom = useMapStore((s) => s.zoom);
+
+  useEffect(() => {
+    if (!center) return;
+    const current = map.getCenter();
+    const currentZoom = map.getZoom();
+    const targetZoom = typeof zoom === "number" ? zoom : currentZoom;
+    const eps = 1e-7;
+    const sameCenter = Math.abs(current.lat - center.lat) < eps && Math.abs(current.lng - center.lng) < eps;
+    const sameZoom = Math.abs(currentZoom - targetZoom) < eps;
+    if (sameCenter && sameZoom) return;
+    map.flyTo([center.lat, center.lng], targetZoom, { duration: 0.5 });
+  }, [center?.lat, center?.lng, zoom, map]);
+  return null;
+}
+
 type MapLeafletProps = { sidebarOpen?: boolean };
 
 const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
@@ -122,6 +141,7 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
       />
       <MapEventBinder />
       <SelectedMarkerFollower />
+      <CenterZoomFollower />
       <InvalidateOnSidebarChange open={sidebarOpen} />
 
       {markers.map((m) => (

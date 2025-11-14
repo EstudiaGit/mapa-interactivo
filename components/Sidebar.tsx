@@ -5,6 +5,7 @@
 import { type FC, useEffect, useMemo, useState } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
 import { useToastStore } from "@/hooks/useToastStore";
+import FocusTrap from "focus-trap-react";
 
 // Nuevas props para controlar la visibilidad en dispositivos móviles
 interface SidebarProps {
@@ -22,8 +23,20 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
     return () => window.removeEventListener("resize", check);
   }, []);
 
-  // Estado local para búsqueda en lista
+  // Estado local para búsqueda en lista + autosuggest (Nominatim)
   const [query, setQuery] = useState("");
+  type Suggestion = {
+    id: string;
+    name: string;
+    address: string;
+    CP: string;
+    lat: number;
+    lng: number;
+  };
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+  const [onlyCenter, setOnlyCenter] = useState(false); // preferencia: solo centrar
 
   // Store global (Zustand)
   const markers = useMapStore((s) => s.markers);
@@ -31,9 +44,58 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const selectMarker = useMapStore((s) => s.selectMarker);
   const removeMarker = useMapStore((s) => s.removeMarker);
   const renameMarker = useMapStore((s) => s.renameMarker);
+  const setCenter = useMapStore((s) => s.setCenter);
+  const setZoom = useMapStore((s) => s.setZoom);
   const updateMarker = useMapStore((s) => s.updateMarker);
 
   // Filtrado por título o coordenadas
+  // Debounced fetch a Nominatim
+  const fetchSuggestions = useMemo(() => {
+    let timer: any;
+    return (q: string) => {
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        try {
+          const params = new URLSearchParams({
+            q,
+            format: "json",
+            addressdetails: "1",
+            limit: "5",
+          });
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+            headers: {
+              "Accept": "application/json",
+              // Respeto de politicas Nominatim
+              "User-Agent": "hito2-mapa-app/1.0 (contact@example.com)",
+              "Referer": typeof window !== "undefined" ? window.location.origin : "",
+            },
+          });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const mapped: Suggestion[] = (data as any[]).map((d) => ({
+            id: String(d.place_id),
+            name: d.display_name?.split(",")[0] ?? d.display_name ?? "(Sin nombre)",
+            address: d.display_name ?? "",
+            CP: d.address?.postcode ?? "",
+            lat: parseFloat(d.lat),
+            lng: parseFloat(d.lon),
+          }));
+          setSuggestions(mapped);
+          setShowSuggest(true);
+          setActiveIndex(mapped.length ? 0 : -1);
+          if (mapped.length === 0) {
+            toast({ type: "info", message: `Sin resultados para "${q}"` });
+          }
+        } catch (err) {
+          setSuggestions([]);
+          setShowSuggest(true);
+          setActiveIndex(-1);
+          toast({ type: "error", message: `Error al buscar direcciones: ${String((err as Error)?.message ?? err)}` });
+        }
+      }, 350);
+    };
+  }, []);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return markers;
@@ -89,6 +151,22 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
     };
     input.click();
   };
+  const selectSuggestion = (s: Suggestion) => {
+    const id = useMapStore.getState().addMarker({
+      name: s.name,
+      description: "",
+      address: s.address,
+      CP: s.CP,
+      coordinates: { lat: s.lat, lng: s.lng },
+    } as any);
+    selectMarker(id);
+    setQuery("");
+    setSuggestions([]);
+    setShowSuggest(false);
+    setActiveIndex(-1);
+    toast({ type: "success", message: `Añadida dirección: ${s.name}` });
+  };
+
   const onExportClick = () => {
     const data = markers.map((m) => ({
       id: m.id,
@@ -274,13 +352,104 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
       </div>
 
       {/* Campo de Búsqueda */}
-      <input
-        type="text"
-        placeholder="Buscar por nombre o coordenadas (lat,lng)..."
-        className="w-full p-2 rounded bg-gray-700 border border-gray-600 placeholder-gray-400"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Buscar por nombre o coordenadas (lat,lng)..."
+          className="w-full p-2 rounded bg-gray-700 border border-gray-600 placeholder-gray-400"
+          value={query}
+          onChange={(e) => {
+            const v = e.target.value;
+            setQuery(v);
+            if (v.trim().length >= 3) {
+              fetchSuggestions(v);
+            } else {
+              setSuggestions([]);
+              setShowSuggest(false);
+            }
+          }}
+          onFocus={() => {
+            if (suggestions.length > 0) setShowSuggest(true);
+          }}
+          onKeyDown={(e) => {
+            if (!showSuggest || suggestions.length === 0) return;
+            // Atajos: Ctrl+Enter => solo centrar, Enter => crear (según toggle onlyCenter)
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setActiveIndex((i) => (i + 1) % suggestions.length);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActiveIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              const s = suggestions[activeIndex] ?? suggestions[0];
+              if (!s) return;
+              if (e.ctrlKey || onlyCenter) {
+                // Solo centrar: sin crear marker
+                setCenter(s.lat, s.lng);
+                setZoom(Math.max(14, (useMapStore.getState().zoom ?? 12)));
+                toast({ type: "info", message: `Vista centrada en: ${s.name}` });
+                setShowSuggest(false);
+              } else {
+                selectSuggestion(s);
+              }
+            } else if (e.key === "Escape") {
+              setShowSuggest(false);
+            }
+          }}
+          aria-expanded={showSuggest}
+          aria-controls="suggest-listbox"
+          aria-autocomplete="list"
+          role="combobox"
+        />
+
+        {showSuggest && (
+          <ul
+            id="suggest-listbox"
+            role="listbox"
+            className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-600 bg-gray-800 shadow-lg"
+          >
+            {suggestions.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            ) : (
+              suggestions.map((s, idx) => (
+                <li
+                  key={s.id}
+                  id={`opt-${s.id}`}
+                  role="option"
+                  aria-selected={idx === activeIndex}
+                  className={`cursor-pointer px-3 py-2 text-sm ${idx === activeIndex ? "bg-gray-700" : "bg-gray-800 hover:bg-gray-700"}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    if (onlyCenter) {
+                      setCenter(s.lat, s.lng);
+                      setZoom(Math.max(14, (useMapStore.getState().zoom ?? 12)));
+                      toast({ type: "info", message: `Vista centrada en: ${s.name}` });
+                      setShowSuggest(false);
+                    } else {
+                      selectSuggestion(s);
+                    }
+                  }}
+                >
+                  <div className="font-medium">{s.name}</div>
+                  <div className="text-xs text-gray-400">{s.address}</div>
+                </li>
+              ))
+            )}
+          </ul>
+        )}
+        <div className="mt-2 flex items-center gap-2 text-xs text-gray-300">
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="accent-blue-500"
+              checked={onlyCenter}
+              onChange={(e) => setOnlyCenter(e.target.checked)}
+            />
+            Solo centrar (no crear marcador)
+          </label>
+        </div>
+      </div>
 
       {/* Lista de Ubicaciones */}
       <div className="mt-4 flex-grow overflow-y-auto pr-2">
@@ -444,75 +613,86 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
             }
           }}
         >
-          <div className="w-full max-w-md bg-gray-800 text-white rounded-lg p-4 border border-gray-700 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <h3 id="edit-title" className="text-xl font-semibold mb-2">Editar dirección</h3>
-            <p className="sr-only" aria-live="assertive">{announce}</p>
+          <FocusTrap
+            active={!!editingId}
+            focusTrapOptions={{
+              initialFocus: "#edit-name-input",
+              returnFocusOnDeactivate: true,
+              escapeDeactivates: false,
+              clickOutsideDeactivates: true,
+              allowOutsideClick: true,
+            }}
+          >
+            <div className="w-full max-w-md bg-gray-800 text-white rounded-lg p-4 border border-gray-700 shadow-lg" onClick={(e) => e.stopPropagation()}>
+              <h3 id="edit-title" className="text-xl font-semibold mb-2">Editar dirección</h3>
+              <p className="sr-only" aria-live="assertive">{announce}</p>
 
-            <label className="block text-sm mb-2">
-              Nombre
-              <input
-                className={`mt-1 w-full p-2 rounded bg-gray-700 border ${errors.name ? "border-red-500" : "border-gray-600"}`}
-                placeholder="Ej.: Ayuntamiento de Las Palmas de Gran Canaria"
-                value={form.name}
-                data-error={!!errors.name}
-                aria-invalid={!!errors.name}
-                aria-describedby={errors.name ? "error-name" : undefined}
-                autoFocus
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              />
-              {errors.name && <span id="error-name" className="text-red-400 text-xs">{errors.name}</span>}
-            </label>
+              <label className="block text-sm mb-2">
+                Nombre
+                <input
+                  id="edit-name-input"
+                  className={`mt-1 w-full p-2 rounded bg-gray-700 border ${errors.name ? "border-red-500" : "border-gray-600"} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                  placeholder="Ej.: Ayuntamiento de Las Palmas de Gran Canaria"
+                  value={form.name}
+                  data-error={!!errors.name}
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? "error-name" : undefined}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                />
+                {errors.name && <span id="error-name" className="text-red-400 text-xs">{errors.name}</span>}
+              </label>
 
-            <label className="block text-sm mb-2">
-              Descripción
-              <textarea
-                className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600"
-                placeholder="Ej.: Sede principal del Ayuntamiento"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </label>
+              <label className="block text-sm mb-2">
+                Descripción
+                <textarea
+                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="Ej.: Sede principal del Ayuntamiento"
+                  value={form.description}
+                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </label>
 
-            <label className="block text-sm mb-2">
-              Dirección
-              <input
-                className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600"
-                placeholder="Ej.: Calle León y Castillo, 270"
-                value={form.address}
-                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-              />
-            </label>
+              <label className="block text-sm mb-2">
+                Dirección
+                <input
+                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="Ej.: Calle León y Castillo, 270"
+                  value={form.address}
+                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+                />
+              </label>
 
-            <label className="block text-sm mb-4">
-              CP
-              <input
-                className={`mt-1 w-full p-2 rounded bg-gray-700 border ${errors.CP ? "border-red-500" : "border-gray-600"}`}
-                placeholder="Ej.: 35005 o 35005 Las Palmas de Gran Canaria"
-                value={form.CP}
-                data-error={!!errors.CP}
-                aria-invalid={!!errors.CP}
-                aria-describedby={errors.CP ? "error-cp" : undefined}
-                onChange={(e) => setForm((f) => ({ ...f, CP: e.target.value }))}
-              />
-              {errors.CP && <span id="error-cp" className="text-red-400 text-xs">{errors.CP}</span>}
-            </label>
+              <label className="block text-sm mb-4">
+                CP
+                <input
+                  className={`mt-1 w-full p-2 rounded bg-gray-700 border ${errors.CP ? "border-red-500" : "border-gray-600"} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
+                  placeholder="Ej.: 35005 o 35005 Las Palmas de Gran Canaria"
+                  value={form.CP}
+                  data-error={!!errors.CP}
+                  aria-invalid={!!errors.CP}
+                  aria-describedby={errors.CP ? "error-cp" : undefined}
+                  onChange={(e) => setForm((f) => ({ ...f, CP: e.target.value }))}
+                />
+                {errors.CP && <span id="error-cp" className="text-red-400 text-xs">{errors.CP}</span>}
+              </label>
 
-            <div className="flex justify-end gap-2">
-              <button
-                className="px-4 py-2 rounded border border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white"
-                onClick={requestClose}
-              >
-                Cancelar
-              </button>
-              <button
-                className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60"
-                onClick={saveEdit}
-                disabled={Object.keys(errors).length > 0 || form.name.trim().length === 0}
-              >
-                Guardar
-              </button>
+              <div className="flex justify-end gap-2">
+                <button
+                  className="px-4 py-2 rounded border border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  onClick={requestClose}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  onClick={saveEdit}
+                  disabled={Object.keys(errors).length > 0 || form.name.trim().length === 0}
+                >
+                  Guardar
+                </button>
+              </div>
             </div>
-          </div>
+          </FocusTrap>
         </div>
       )}
     </aside>

@@ -1,6 +1,8 @@
 "use client";
 
 import { type FC, type FormEvent } from "react";
+import { motion } from "framer-motion";
+
 
 /**
  * Clases de estilo reutilizables para el componente ChatWindow.
@@ -43,42 +45,50 @@ const ChatWindow: FC<ChatWindowProps> = ({ isOpen, onClose }) => {
   };
 
   return (
-    <aside
+    <motion.aside
       className={`
         fixed
         bg-gray-800 text-white shadow-xl flex flex-col
-        transition-all duration-300 ease-in-out
-
-        // --- Estilos para Móvil (Bottom Sheet) ---
-            bottom-0 left-0 right-0         // 1. Lo anclamos a la parte inferior y a los lados
-            h-[60vh]                        // 2. Le damos el 90% de la altura del viewport
-            rounded-t-2xl                   // 3. Redondeamos las esquinas superiores
-            border-t border-gray-700        // 4. Añadimos un borde sutil arriba
-            z-50
-            transform ${isOpen ? "translate-y-0" : "translate-y-full"}
-
-        // Estilos para Desktop (md:): se convierte en una ventana flotante
-        md:inset-auto md:bottom-5 md:right-5
-        md:w-96 md:h-[500px] md:rounded-lg md:z-50
-        md:translate-y-0
+        rounded-t-2xl md:rounded-lg
+        border-t border-gray-700
+        z-50
+        bottom-0 left-0 right-0
+        h-[60vh]
+        md:inset-auto md:bottom-5 md:right-5 md:w-96 md:h-[500px]
       `}
       role="dialog"
-      aria-modal="true"
-      aria-hidden={!isOpen}
+      aria-modal={true}
       aria-labelledby="chat-title"
+      initial={{ opacity: 0, y: 40, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 40, scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.9 }}
     >
-      {/* Cabecera del Chat con botón de cierre para móvil */}
+      {/* Cabecera del Chat con botón de cierre para móvil y minimizar en desktop */}
       <header className={`${STYLES.header} flex justify-between items-center`}>
         <h2 className={STYLES.headerTitle} id="chat-title">
           Chat con el Mapa
         </h2>
-        <button
-          onClick={onClose}
-          className="md:hidden text-gray-400 hover:text-white text-2xl leading-none"
-          aria-label="Cerrar chat"
-        >
-          &times;
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Minimizar (desktop) */}
+          <button
+            onClick={onClose}
+            className="hidden md:inline-flex text-gray-300 hover:text-white text-sm px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
+            aria-label="Minimizar chat"
+            title="Minimizar"
+          >
+            Minimizar
+          </button>
+          {/* Cerrar (móvil) */}
+          <button
+            onClick={onClose}
+            className="md:hidden text-gray-400 hover:text-white text-2xl leading-none"
+            aria-label="Cerrar chat"
+            title="Cerrar"
+          >
+            &times;
+          </button>
+        </div>
       </header>
 
       {/* Área de Mensajes */}
@@ -124,7 +134,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ isOpen, onClose }) => {
           </svg>
         </button>
       </form>
-    </aside>
+    </motion.aside>
   );
 };
 

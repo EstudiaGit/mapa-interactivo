@@ -40,4 +40,5 @@ next-env.d.ts
 .vercel
 
 #docs
+/docs
 repomix-mapa-interactivo.md
