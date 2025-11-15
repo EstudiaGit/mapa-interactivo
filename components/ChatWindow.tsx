@@ -34,7 +34,7 @@ interface ChatWindowProps {
  * Componente ChatWindow - Ventana de chat adaptable para móvil y escritorio.
  * En móvil se comporta como un modal de pantalla completa, en escritorio como una ventana flotante.
  */
-const ChatWindow: FC<ChatWindowProps> = ({ isOpen, onClose }) => {
+const ChatWindow: FC<ChatWindowProps> = ({ onClose }) => {
   /**
    * Maneja el envío del formulario de chat.
    * @param e - Evento del formulario
@@ -96,7 +96,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ isOpen, onClose }) => {
         <div className={STYLES.placeholder}>
           <p>Pregúntale al mapa...</p>
           <p className={STYLES.exampleText}>
-            Ejemplo: "Busca cafeterías cerca de la playa de Las Canteras"
+            Ejemplo: &quot;Busca cafeterías cerca de la playa de Las Canteras&quot;
           </p>
         </div>
       </div>

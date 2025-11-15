@@ -2,7 +2,7 @@
 
 "use client";
 
-import { type FC, useEffect, useMemo, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
 import { useToastStore } from "@/hooks/useToastStore";
 import FocusTrap from "focus-trap-react";
@@ -14,14 +14,14 @@ interface SidebarProps {
 }
 
 const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
-  // Evitar acceso a window en SSR: detectar móvil en cliente
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
+  // Detectar móvil en cliente (no usado actualmente pero puede ser útil)
+  // const [isMobile, setIsMobile] = useState(false);
+  // useEffect(() => {
+  //   const check = () => setIsMobile(window.innerWidth < 768);
+  //   check();
+  //   window.addEventListener("resize", check);
+  //   return () => window.removeEventListener("resize", check);
+  // }, []);
 
   // Estado local para búsqueda en lista + autosuggest (Nominatim)
   const [query, setQuery] = useState("");
@@ -43,15 +43,17 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const selectedId = useMapStore((s) => s.selectedId);
   const selectMarker = useMapStore((s) => s.selectMarker);
   const removeMarker = useMapStore((s) => s.removeMarker);
-  const renameMarker = useMapStore((s) => s.renameMarker);
+  // const renameMarker = useMapStore((s) => s.renameMarker); // No usado actualmente
   const setCenter = useMapStore((s) => s.setCenter);
   const setZoom = useMapStore((s) => s.setZoom);
   const updateMarker = useMapStore((s) => s.updateMarker);
 
+  const toast = useToastStore((s) => s.enqueue);
+
   // Filtrado por título o coordenadas
   // Debounced fetch a Nominatim
   const fetchSuggestions = useMemo(() => {
-    let timer: any;
+    let timer: NodeJS.Timeout;
     return (q: string) => {
       clearTimeout(timer);
       timer = setTimeout(async () => {
@@ -72,14 +74,21 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
-          const mapped: Suggestion[] = (data as any[]).map((d) => ({
-            id: String(d.place_id),
-            name: d.display_name?.split(",")[0] ?? d.display_name ?? "(Sin nombre)",
-            address: d.display_name ?? "",
-            CP: d.address?.postcode ?? "",
-            lat: parseFloat(d.lat),
-            lng: parseFloat(d.lon),
-          }));
+          const mapped: Suggestion[] = (data as Array<Record<string, unknown>>).map((d) => {
+            const displayName = typeof d.display_name === 'string' ? d.display_name : '';
+            const address = typeof d.address === 'object' && d.address !== null ? d.address as Record<string, unknown> : {};
+            const lat = typeof d.lat === 'string' ? d.lat : String(d.lat ?? '0');
+            const lon = typeof d.lon === 'string' ? d.lon : String(d.lon ?? '0');
+            
+            return {
+              id: String(d.place_id ?? ''),
+              name: displayName.split(",")[0] ?? displayName ?? "(Sin nombre)",
+              address: displayName,
+              CP: typeof address.postcode === 'string' ? address.postcode : "",
+              lat: parseFloat(lat),
+              lng: parseFloat(lon),
+            };
+          });
           setSuggestions(mapped);
           setShowSuggest(true);
           setActiveIndex(mapped.length ? 0 : -1);
@@ -94,7 +103,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
         }
       }, 350);
     };
-  }, []);
+  }, [toast]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -108,8 +117,6 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
       return name.includes(q) || desc.includes(q) || addr.includes(q) || cp.includes(q) || coords.includes(q);
     });
   }, [markers, query]);
-
-  const toast = useToastStore((s) => s.enqueue);
 
   const onAddClick = () => {
     toast({ type: "info", message: "Para añadir una nueva dirección, haz click en el mapa." });
@@ -143,10 +150,13 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
           .filter(Boolean);
         if (entries.length === 0) throw new Error("No hay entradas válidas");
         // Añadir a la store
-        entries.forEach((e) => useMapStore.getState().addMarker(e as any));
-        alert(`Importadas ${entries.length} direcciones correctamente.`);
-      } catch (err: any) {
-        alert(`Error al importar: ${err?.message ?? String(err)}`);
+        entries.forEach((e) => {
+          if (e) useMapStore.getState().addMarker(e);
+        });
+        toast({ type: "success", message: `Importadas ${entries.length} direcciones correctamente.` });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        toast({ type: "error", message: `Error al importar: ${errorMsg}` });
       }
     };
     input.click();
@@ -158,7 +168,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
       address: s.address,
       CP: s.CP,
       coordinates: { lat: s.lat, lng: s.lng },
-    } as any);
+    });
     selectMarker(id);
     setQuery("");
     setSuggestions([]);
@@ -187,6 +197,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   };
 
   const onDeleteClick = (id: string, name?: string) => {
+    // TODO: Reemplazar confirm nativo por modal personalizado
     const ok = confirm(`¿Eliminar "${name ?? "Marcador"}"?`);
     if (ok) {
       removeMarker(id);
@@ -194,10 +205,11 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const onRenameClick = (id: string, current?: string) => {
-    const next = prompt("Nuevo nombre para la dirección:", current ?? "");
-    if (next != null) renameMarker(id, next.trim());
-  };
+  // const onRenameClick = (id: string, current?: string) => {
+  //   // TODO: Reemplazar prompt nativo por modal personalizado
+  //   const next = prompt("Nuevo nombre para la dirección:", current ?? "");
+  //   if (next != null) renameMarker(id, next.trim());
+  // };
 
   // Edición inline por campo
   type InlineField = "name" | "description" | "address" | "CP";
@@ -227,7 +239,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
         return;
       }
     }
-    updateMarker(id, { [field]: value } as any);
+    updateMarker(id, { [field]: value } as Partial<Pick<typeof markers[number], "name" | "description" | "address" | "CP">>);
     toast({ type: "success", message: "Cambios guardados" });
     cancelInline();
   };
@@ -248,9 +260,9 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [originalForm, setOriginalForm] = useState({ name: "", description: "", address: "", CP: "" });
   const [errors, setErrors] = useState<{ name?: string; CP?: string }>({});
   const [announce, setAnnounce] = useState(""); // aria-live
-  const nameInputRef = useState<HTMLInputElement | null>(null)[0];
+  // const nameInputRef = useRef<HTMLInputElement | null>(null);
 
-  const computeErrors = (data = form) => {
+  const computeErrors = useCallback((data = form) => {
     const errs: { name?: string; CP?: string } = {};
     if (!data.name || data.name.trim().length === 0) {
       errs.name = "El nombre es obligatorio";
@@ -263,7 +275,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
       }
     }
     return errs;
-  };
+  }, [form]);
 
   // Mantener errores y anuncio sincronizados en vivo
   useEffect(() => {
@@ -271,7 +283,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
     const errs = computeErrors(form);
     setErrors(errs);
     setAnnounce(Object.keys(errs).length ? "Hay errores en el formulario" : "");
-  }, [form, editingId]);
+  }, [form, editingId, computeErrors]);
 
   const isDirty = () =>
     form.name !== originalForm.name ||
@@ -291,6 +303,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const requestClose = () => {
     if (isDirty()) {
+      // TODO: Reemplazar confirm nativo por modal personalizado
       const ok = confirm("Tienes cambios sin guardar. ¿Cerrar sin guardar?");
       if (!ok) return;
     }
@@ -570,7 +583,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
             </li>
           ))}
           {filtered.length === 0 && (
-            <li className="text-sm text-gray-400">No hay resultados para "{query}"</li>
+            <li className="text-sm text-gray-400">No hay resultados para &quot;{query}&quot;</li>
           )}
         </ul>
       </div>

@@ -31,7 +31,7 @@ const HomePage: FC = () => {
               document.getElementById("chat-input")?.focus();
             }, 0);
           }}
-          ref={chatDockRef as any}
+          ref={chatDockRef}
         />
       )}
 

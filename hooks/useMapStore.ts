@@ -46,7 +46,7 @@ function genId(): MarkerId {
 
 export const useMapStore = create<MapState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       markers: [],
       selectedId: null,
       center: null,
@@ -94,13 +94,14 @@ export const useMapStore = create<MapState>()(
         center: state.center,
         zoom: state.zoom,
       }),
-      migrate: (persistedState: any, version) => {
-        if (!persistedState) return persistedState;
-        if (version < 2 && Array.isArray(persistedState.markers)) {
+      migrate: (persistedState: unknown, version) => {
+        if (!persistedState || typeof persistedState !== 'object') return persistedState as MapState;
+        const state = persistedState as Record<string, unknown>;
+        if (version < 2 && Array.isArray(state.markers)) {
           // Transformar del esquema antiguo {id, lat, lng, title?} al nuevo AddressEntry
           const migrated = {
-            ...persistedState,
-            markers: persistedState.markers.map((m: any) => ({
+            ...state,
+            markers: state.markers.map((m: Record<string, unknown>) => ({
               id: m.id ?? genId(),
               name: m.title ?? "(Sin título)",
               description: "",
@@ -112,7 +113,7 @@ export const useMapStore = create<MapState>()(
           return migrated;
         }
         // v2 -> v3: simplemente asegurar que center/zoom existan o queden como están
-        return persistedState;
+        return persistedState as MapState;
       },
     }
   )

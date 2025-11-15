@@ -85,7 +85,7 @@ function CenterZoomFollower() {
     const sameZoom = Math.abs(currentZoom - targetZoom) < eps;
     if (sameCenter && sameZoom) return;
     map.flyTo([center.lat, center.lng], targetZoom, { duration: 0.5 });
-  }, [center?.lat, center?.lng, zoom, map]);
+  }, [center, zoom, map]);
   return null;
 }
 
@@ -102,8 +102,11 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
   const persistedCenter = useMapStore((s) => s.center);
   const persistedZoom = useMapStore((s) => s.zoom);
 
+  // Evitar setState directo en effect - usar patrón de inicialización
   useEffect(() => {
-    setMounted(true);
+    // Este efecto solo actualiza mounted una vez al montar
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Establecer estado inicial de vista en la store al montar el mapa,

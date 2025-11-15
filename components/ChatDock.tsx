@@ -1,5 +1,5 @@
 "use client";
-import { type FC, forwardRef } from "react";
+import { forwardRef } from "react";
 
 interface ChatDockProps {
   onClick: () => void;
