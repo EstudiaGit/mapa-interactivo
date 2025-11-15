@@ -5,6 +5,7 @@
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
 import { useToastStore } from "@/hooks/useToastStore";
+import { useModal } from "@/hooks/useModal";
 import FocusTrap from "focus-trap-react";
 
 // Nuevas props para controlar la visibilidad en dispositivos móviles
@@ -43,12 +44,13 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const selectedId = useMapStore((s) => s.selectedId);
   const selectMarker = useMapStore((s) => s.selectMarker);
   const removeMarker = useMapStore((s) => s.removeMarker);
-  // const renameMarker = useMapStore((s) => s.renameMarker); // No usado actualmente
+  const renameMarker = useMapStore((s) => s.renameMarker);
   const setCenter = useMapStore((s) => s.setCenter);
   const setZoom = useMapStore((s) => s.setZoom);
   const updateMarker = useMapStore((s) => s.updateMarker);
 
   const toast = useToastStore((s) => s.enqueue);
+  const { showConfirm, showPrompt } = useModal();
 
   // Filtrado por título o coordenadas
   // Debounced fetch a Nominatim
@@ -196,20 +198,46 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
     toast({ type: "success", message: "Exportación completada (direcciones.json)" });
   };
 
-  const onDeleteClick = (id: string, name?: string) => {
-    // TODO: Reemplazar confirm nativo por modal personalizado
-    const ok = confirm(`¿Eliminar "${name ?? "Marcador"}"?`);
-    if (ok) {
+  const onDeleteClick = async (id: string, name?: string) => {
+    const confirmed = await showConfirm({
+      title: "Confirmar eliminación",
+      message: `¿Estás seguro de que deseas eliminar "${name ?? "Marcador"}"?`,
+      confirmText: "Eliminar",
+      cancelText: "Cancelar",
+      variant: "danger",
+    });
+    
+    if (confirmed) {
       removeMarker(id);
       toast({ type: "success", message: `Eliminada: ${name ?? "Marcador"}` });
     }
   };
 
-  // const onRenameClick = (id: string, current?: string) => {
-  //   // TODO: Reemplazar prompt nativo por modal personalizado
-  //   const next = prompt("Nuevo nombre para la dirección:", current ?? "");
-  //   if (next != null) renameMarker(id, next.trim());
-  // };
+  const onRenameClick = async (id: string, current?: string) => {
+    const newName = await showPrompt({
+      title: "Renombrar dirección",
+      message: "Ingresa el nuevo nombre para la dirección:",
+      defaultValue: current ?? "",
+      placeholder: "Nombre de la dirección",
+      confirmText: "Renombrar",
+      cancelText: "Cancelar",
+      validate: (value) => {
+        const trimmed = value.trim();
+        if (trimmed.length === 0) {
+          return "El nombre no puede estar vacío";
+        }
+        if (trimmed.length < 3) {
+          return "El nombre debe tener al menos 3 caracteres";
+        }
+        return null;
+      },
+    });
+    
+    if (newName !== null) {
+      renameMarker(id, newName.trim());
+      toast({ type: "success", message: `Dirección renombrada: ${newName.trim()}` });
+    }
+  };
 
   // Edición inline por campo
   type InlineField = "name" | "description" | "address" | "CP";
@@ -301,11 +329,17 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
     // focus se gestionará en el render con autoFocus
   };
 
-  const requestClose = () => {
+  const requestClose = async () => {
     if (isDirty()) {
-      // TODO: Reemplazar confirm nativo por modal personalizado
-      const ok = confirm("Tienes cambios sin guardar. ¿Cerrar sin guardar?");
-      if (!ok) return;
+      const confirmed = await showConfirm({
+        title: "Cambios sin guardar",
+        message: "Tienes cambios sin guardar. ¿Deseas cerrar sin guardar?",
+        confirmText: "Cerrar sin guardar",
+        cancelText: "Continuar editando",
+        variant: "warning",
+      });
+      
+      if (!confirmed) return;
     }
     setEditingId(null);
   };
@@ -563,16 +597,25 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
                   {m.coordinates.lat.toFixed(5)}, {m.coordinates.lng.toFixed(5)}
                 </p>
               </button>
-              <div className="flex gap-2 items-center">
+              <div className="flex flex-col gap-1 items-end">
+                <div className="flex gap-1">
+                  <button
+                    className="text-gray-300 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
+                    onClick={() => onRenameClick(m.id, m.name)}
+                    title="Renombrar"
+                  >
+                    Renombrar
+                  </button>
+                  <button
+                    className="text-gray-300 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
+                    onClick={() => openEdit(m)}
+                    title="Editar"
+                  >
+                    Editar
+                  </button>
+                </div>
                 <button
-                  className="text-gray-300 hover:text-white text-sm px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
-                  onClick={() => openEdit(m)}
-                  title="Editar"
-                >
-                  Editar
-                </button>
-                <button
-                  className="text-gray-400 hover:text-white text-xl"
+                  className="text-gray-400 hover:text-red-400 text-xl leading-none"
                   aria-label={`Eliminar ${m.name ?? "Marcador"}`}
                   onClick={() => onDeleteClick(m.id, m.name)}
                   title="Eliminar"

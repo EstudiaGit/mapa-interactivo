@@ -47,7 +47,6 @@ function MapEventBinder() {
     moveend(e) {
       const c = e.target.getCenter();
       const z = e.target.getZoom();
-      // Evitar loop: solo actualizar si cambió realmente
       setCenter(c.lat, c.lng);
       setZoom(z);
     },
@@ -147,29 +146,51 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
       <CenterZoomFollower />
       <InvalidateOnSidebarChange open={sidebarOpen} />
 
-      {markers.map((m) => (
-        <Fragment key={m.id}>
-          <Marker
-            position={[m.coordinates.lat, m.coordinates.lng]}
-            zIndexOffset={selectedId === m.id ? 1000 : 0}
-          >
-            <Popup>
-              {m.name || "(Sin título)"}
-              <br />
-              {m.coordinates.lat.toFixed(5)}, {m.coordinates.lng.toFixed(5)}
-              <br />
-              {m.address || ""}
-            </Popup>
-          </Marker>
-          {selectedId === m.id && (
-            <CircleMarker
-              center={[m.coordinates.lat, m.coordinates.lng]}
-              radius={14}
-              pathOptions={{ color: "#3b82f6", weight: 3, fill: false }}
-            />
-          )}
-        </Fragment>
-      ))}
+      {markers.map((m) => {
+        const selectMarkerFn = useMapStore.getState().selectMarker;
+        return (
+          <Fragment key={m.id}>
+            <Marker
+              position={[m.coordinates.lat, m.coordinates.lng]}
+              zIndexOffset={selectedId === m.id ? 1000 : 0}
+              eventHandlers={{
+                click: () => {
+                  selectMarkerFn(m.id);
+                },
+              }}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <strong>{m.name || "(Sin título)"}</strong>
+                  <br />
+                  <span className="text-gray-600">
+                    {m.coordinates.lat.toFixed(5)}, {m.coordinates.lng.toFixed(5)}
+                  </span>
+                  {m.address && (
+                    <>
+                      <br />
+                      <span className="text-gray-700">{m.address}</span>
+                    </>
+                  )}
+                  {m.description && (
+                    <>
+                      <br />
+                      <span className="text-gray-600 italic text-xs">{m.description}</span>
+                    </>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+            {selectedId === m.id && (
+              <CircleMarker
+                center={[m.coordinates.lat, m.coordinates.lng]}
+                radius={14}
+                pathOptions={{ color: "#3b82f6", weight: 3, fill: false }}
+              />
+            )}
+          </Fragment>
+        );
+      })}
     </MapContainer>
   );
 };
