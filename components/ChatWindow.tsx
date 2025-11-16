@@ -5,8 +5,7 @@ import { motion } from "framer-motion";
 import { useChatStore } from "@/hooks/useChatStore";
 import { useMapStore } from "@/hooks/useMapStore";
 import { useToastStore } from "@/hooks/useToastStore";
-import { useChatActions } from "@/hooks/useChatActions";
-import { sendMessage } from "@/lib/ai-service";
+import { useServerActions } from "@/hooks/useServerActions";
 import ChatMessage from "./ChatMessage";
 import ChatActionMessage from "./ChatActionMessage";
 
@@ -58,7 +57,7 @@ const ChatWindow: FC<ChatWindowProps> = ({ onClose }) => {
   const center = useMapStore((s) => s.center);
   
   const toast = useToastStore((s) => s.enqueue);
-  const chatActions = useChatActions();
+  const { processServerActions } = useServerActions();
 
   // Auto-scroll al último mensaje
   useEffect(() => {
@@ -85,12 +84,34 @@ const ChatWindow: FC<ChatWindowProps> = ({ onClose }) => {
       // Obtener historial de conversación
       const history = getHistory();
       
-      // Enviar mensaje a la IA con contexto de acciones
-      const response = await sendMessage(userMessage, markers, center, history, chatActions);
+      // Enviar mensaje al API Route del servidor
+      const apiResponse = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userMessage,
+          markers,
+          center,
+          conversationHistory: history,
+        }),
+      });
+
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.error || "Error al comunicarse con el servidor");
+      }
+
+      const response = await apiResponse.json();
       
-      // Si la IA usó herramientas, agregar mensajes de acción
+      // Si la IA usó herramientas, procesarlas y agregar mensajes de acción
       if (response.toolsUsed && response.toolsUsed.length > 0) {
-        response.toolsUsed.forEach((toolUse) => {
+        // Procesar acciones en el cliente
+        processServerActions(response.toolsUsed);
+
+        // Agregar mensajes de acción al chat
+        response.toolsUsed.forEach((toolUse: any) => {
           addMessage(
             "action",
             `Acción ejecutada: ${toolUse.name}`,
