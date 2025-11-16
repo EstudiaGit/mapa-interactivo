@@ -1,7 +1,12 @@
 // lib/ai-service.ts
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { AddressEntry } from "@/hooks/useMapStore";
-import { AVAILABLE_TOOLS, executeTool, type ChatActionsContext, type ToolResult } from "./chat-tools";
+import {
+  AVAILABLE_TOOLS,
+  executeTool,
+  type ChatActionsContext,
+  type ToolResult,
+} from "./chat-tools";
 
 /**
  * Servicio para interactuar con Google AI (Gemini)
@@ -14,11 +19,11 @@ const MODEL_NAME = "gemini-2.5-flash";
  * Obtiene la instancia de Google AI
  */
 function getGoogleAI() {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY;
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
 
   if (!apiKey) {
     throw new Error(
-      "API Key de Google AI no configurada. Por favor, agrega NEXT_PUBLIC_GOOGLE_AI_API_KEY en tu archivo .env.local",
+      "API Key de Google AI no configurada. Por favor, agrega GOOGLE_AI_API_KEY en tu archivo .env.local",
     );
   }
 
@@ -58,18 +63,21 @@ export function buildMapContext(
  * Convierte las herramientas a formato de functionDeclarations de Gemini
  */
 function convertToolsToFunctionDeclarations() {
-  return AVAILABLE_TOOLS.map(tool => ({
+  return AVAILABLE_TOOLS.map((tool) => ({
     name: tool.name,
     description: tool.description,
     parameters: {
       type: "OBJECT",
-      properties: Object.entries(tool.parameters.properties).reduce((acc, [key, value]) => {
-        acc[key] = {
-          type: value.type.toUpperCase(),
-          description: value.description,
-        };
-        return acc;
-      }, {} as any),
+      properties: Object.entries(tool.parameters.properties).reduce(
+        (acc, [key, value]) => {
+          acc[key] = {
+            type: value.type.toUpperCase(),
+            description: value.description,
+          };
+          return acc;
+        },
+        {} as any,
+      ),
       required: tool.parameters.required,
     },
   }));
@@ -96,7 +104,7 @@ export async function sendMessage(
   markers: AddressEntry[],
   center?: { lat: number; lng: number } | null,
   conversationHistory?: Array<{ role: string; parts: string }>,
-  actionsContext?: ChatActionsContext
+  actionsContext?: ChatActionsContext,
 ): Promise<SendMessageResult> {
   try {
     const genAI = getGoogleAI();
@@ -126,8 +134,9 @@ export async function sendMessage(
     // Mensaje del sistema con contexto
     chatHistory.push({
       role: "user",
-      parts: [{
-        text: `Eres un asistente virtual especializado en ayudar con mapas interactivos y ubicaciones.
+      parts: [
+        {
+          text: `Eres un asistente virtual especializado en ayudar con mapas interactivos y ubicaciones.
 
 ${mapContext}
 
@@ -141,12 +150,17 @@ IMPORTANTE: Cuando el usuario pida agregar, buscar o gestionar marcadores, DEBES
 No solo describas lo que harías, EJECUTA las herramientas.
 
 Responde de forma concisa, amigable y útil.`,
-      }],
+        },
+      ],
     });
 
     chatHistory.push({
       role: "model",
-      parts: [{ text: "Entendido. Estoy listo para ayudarte con el mapa. Puedo agregar marcadores, buscar lugares, listar tus ubicaciones y más. ¿Qué necesitas?" }],
+      parts: [
+        {
+          text: "Entendido. Estoy listo para ayudarte con el mapa. Puedo agregar marcadores, buscar lugares, listar tus ubicaciones y más. ¿Qué necesitas?",
+        },
+      ],
     });
 
     // Agregar historial previo
@@ -173,7 +187,11 @@ Responde de forma concisa, amigable y útil.`,
     let result = await chat.sendMessage(userMessage);
     let response = result.response;
 
-    const toolsUsed: Array<{ name: string; parameters: Record<string, any>; result: ToolResult }> = [];
+    const toolsUsed: Array<{
+      name: string;
+      parameters: Record<string, any>;
+      result: ToolResult;
+    }> = [];
 
     // Verificar si hay function calls
     const functionCalls = response.functionCalls?.() || [];
@@ -185,7 +203,11 @@ Responde de forma concisa, amigable y útil.`,
         console.log("  → Ejecutando:", call.name, call.args);
 
         // Ejecutar la herramienta
-        const toolResult = await executeTool(call.name, call.args, actionsContext);
+        const toolResult = await executeTool(
+          call.name,
+          call.args,
+          actionsContext,
+        );
         toolsUsed.push({
           name: call.name,
           parameters: call.args,
@@ -193,12 +215,14 @@ Responde de forma concisa, amigable y útil.`,
         });
 
         // Enviar resultado de vuelta a la IA
-        const functionResponse = [{
-          functionResponse: {
-            name: call.name,
-            response: toolResult,
+        const functionResponse = [
+          {
+            functionResponse: {
+              name: call.name,
+              response: toolResult,
+            },
           },
-        }];
+        ];
 
         // Continuar la conversación
         result = await chat.sendMessage(functionResponse);
