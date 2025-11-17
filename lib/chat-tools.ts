@@ -119,20 +119,21 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
       required: ["latitude", "longitude"],
     },
   },
-  {
-    name: "search_location",
-    description: "Busca una ubicación por nombre o dirección usando geocoding. Usa esta herramienta cuando el usuario mencione un lugar pero no tengas las coordenadas.",
-    parameters: {
-      type: "object",
-      properties: {
-        query: {
-          type: "string",
-          description: "Nombre del lugar o dirección a buscar (ej: 'Torre Eiffel', 'Calle Mayor 5, Madrid')",
-        },
-      },
-      required: ["query"],
-    },
-  },
+  // DESACTIVADA TEMPORALMENTE - Causa errores 503
+  // {
+  //   name: "search_location",
+  //   description: "Busca una ubicación por nombre o dirección usando geocoding. Usa esta herramienta cuando el usuario mencione un lugar pero no tengas las coordenadas.",
+  //   parameters: {
+  //     type: "object",
+  //     properties: {
+  //       query: {
+  //         type: "string",
+  //         description: "Nombre del lugar o dirección a buscar (ej: 'Torre Eiffel', 'Calle Mayor 5, Madrid')",
+  //       },
+  //     },
+  //     required: ["query"],
+  //   },
+  // },
 ];
 
 /**
