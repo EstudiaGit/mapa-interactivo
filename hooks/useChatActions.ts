@@ -23,13 +23,13 @@ export function useChatActions(): ChatActionsContext {
    * Agrega un nuevo marcador al mapa
    */
   const addMarker = useCallback(
-    (name: string, lat: number, lng: number, address?: string, description?: string): string => {
+    (name: string, lat: number, lng: number, address?: string, description?: string, CP?: string): string => {
       const id = addMarkerToStore({
         name,
         coordinates: { lat, lng },
         address: address || "",
         description: description || "",
-        CP: "",
+        CP: CP || "",
       });
 
       toast({
@@ -94,11 +94,12 @@ export function useChatActions(): ChatActionsContext {
 
   /**
    * Busca una ubicación usando Nominatim (OpenStreetMap)
+   * Incluye addressdetails=1 para obtener información estructurada
    */
   const searchLocation = useCallback(async (query: string): Promise<any> => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&addressdetails=1`
       );
       
       if (!response.ok) {

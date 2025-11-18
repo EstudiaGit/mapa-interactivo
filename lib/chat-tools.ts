@@ -32,7 +32,7 @@ export interface ToolResult {
  * Contexto de acciones disponibles para el chat
  */
 export interface ChatActionsContext {
-  addMarker: (name: string, lat: number, lng: number, address?: string, description?: string) => string;
+  addMarker: (name: string, lat: number, lng: number, address?: string, description?: string, CP?: string) => string;
   removeMarker: (id: string) => boolean;
   updateMarker: (id: string, updates: Partial<AddressEntry>) => boolean;
   listMarkers: () => AddressEntry[];
@@ -52,7 +52,7 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
       properties: {
         name: {
           type: "string",
-          description: "Nombre descriptivo del marcador (ej: 'Cafetería Central', 'Casa de María')",
+          description: "Nombre descriptivo del marcador (ej: 'Cafetería Central', 'Calle Fernando Guanarteme, 70')",
         },
         latitude: {
           type: "number",
@@ -64,11 +64,15 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
         },
         address: {
           type: "string",
-          description: "Dirección completa de la ubicación (opcional)",
+          description: "Dirección de la calle con número (opcional, ej: 'Calle Fernando Guanarteme, 70')",
         },
         description: {
           type: "string",
-          description: "Descripción adicional o notas sobre el lugar (opcional)",
+          description: "Información adicional: barrio, ciudad, provincia, país (opcional, ej: 'Guanarteme, Las Palmas de Gran Canaria, Canarias, España')",
+        },
+        CP: {
+          type: "string",
+          description: "Código postal de la ubicación (opcional, ej: '35907')",
         },
       },
       required: ["name", "latitude", "longitude"],
@@ -119,21 +123,20 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
       required: ["latitude", "longitude"],
     },
   },
-  // DESACTIVADA TEMPORALMENTE - Causa errores 503
-  // {
-  //   name: "search_location",
-  //   description: "Busca una ubicación por nombre o dirección usando geocoding. Usa esta herramienta cuando el usuario mencione un lugar pero no tengas las coordenadas.",
-  //   parameters: {
-  //     type: "object",
-  //     properties: {
-  //       query: {
-  //         type: "string",
-  //         description: "Nombre del lugar o dirección a buscar (ej: 'Torre Eiffel', 'Calle Mayor 5, Madrid')",
-  //       },
-  //     },
-  //     required: ["query"],
-  //   },
-  // },
+  {
+    name: "search_location",
+    description: "Busca una ubicación por nombre o dirección usando geocoding. Usa esta herramienta cuando el usuario mencione un lugar pero no tengas las coordenadas.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Nombre del lugar o dirección a buscar (ej: 'Torre Eiffel', 'Calle Mayor 5, Madrid')",
+        },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 /**
@@ -147,7 +150,7 @@ export async function executeTool(
   try {
     switch (toolName) {
       case "add_marker": {
-        const { name, latitude, longitude, address, description } = parameters;
+        const { name, latitude, longitude, address, description, CP } = parameters;
         
         // Validar coordenadas
         if (latitude < -90 || latitude > 90) {
@@ -163,10 +166,10 @@ export async function executeTool(
           };
         }
         
-        const markerId = context.addMarker(name, latitude, longitude, address, description);
+        const markerId = context.addMarker(name, latitude, longitude, address, description, CP);
         return {
           success: true,
-          data: { markerId, name, latitude, longitude },
+          data: { markerId, name, latitude, longitude, address, description, CP },
           message: `Marcador "${name}" agregado exitosamente en [${latitude.toFixed(4)}, ${longitude.toFixed(4)}]`,
         };
       }

@@ -10,12 +10,116 @@ function generateId(): string {
 }
 
 /**
+ * Interfaz para la respuesta estructurada de Nominatim
+ */
+interface NominatimAddress {
+  house_number?: string;
+  road?: string;
+  suburb?: string;
+  neighbourhood?: string;
+  village?: string;
+  town?: string;
+  city?: string;
+  municipality?: string;
+  state?: string;
+  postcode?: string;
+  country?: string;
+}
+
+interface NominatimResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+  address?: NominatimAddress;
+  name?: string;
+  type?: string;
+}
+
+/**
+ * Parsea la información de Nominatim y la estructura en campos separados
+ */
+function parseNominatimAddress(result: NominatimResult): {
+  name: string;
+  address: string;
+  CP: string;
+  description: string;
+} {
+  const addr = result.address;
+  
+  if (!addr) {
+    // Si no hay información estructurada, usar display_name
+    return {
+      name: result.name || result.display_name.split(',')[0] || "Ubicación",
+      address: result.display_name,
+      CP: "",
+      description: "",
+    };
+  }
+
+  // Construir el nombre (número + calle o nombre del lugar)
+  let name = "";
+  if (addr.house_number && addr.road) {
+    name = `${addr.road}, ${addr.house_number}`;
+  } else if (addr.road) {
+    name = addr.road;
+  } else if (result.name) {
+    name = result.name;
+  } else {
+    // Usar el primer elemento del display_name como fallback
+    name = result.display_name.split(',')[0].trim();
+  }
+
+  // Construir la dirección completa (calle completa)
+  let address = "";
+  if (addr.house_number && addr.road) {
+    address = `${addr.road}, ${addr.house_number}`;
+  } else if (addr.road) {
+    address = addr.road;
+  } else {
+    address = name;
+  }
+
+  // Extraer código postal
+  const CP = addr.postcode || "";
+
+  // Construir descripción con información adicional (barrio, ciudad, etc.)
+  const descParts: string[] = [];
+  
+  if (addr.suburb || addr.neighbourhood) {
+    descParts.push(addr.suburb || addr.neighbourhood!);
+  }
+  
+  const locality = addr.city || addr.town || addr.village || addr.municipality;
+  if (locality) {
+    descParts.push(locality);
+  }
+  
+  if (addr.state) {
+    descParts.push(addr.state);
+  }
+  
+  if (addr.country) {
+    descParts.push(addr.country);
+  }
+
+  const description = descParts.join(", ");
+
+  return {
+    name,
+    address,
+    CP,
+    description,
+  };
+}
+
+/**
  * Busca una ubicación usando Nominatim (OpenStreetMap)
+ * Ahora incluye addressdetails=1 para obtener información estructurada
  */
 async function searchLocation(query: string): Promise<any> {
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&addressdetails=1`
     );
 
     if (!response.ok) {
@@ -43,7 +147,7 @@ export async function executeServerAction(
   try {
     switch (toolName) {
       case "add_marker": {
-        const { name, latitude, longitude, address, description } = parameters;
+        const { name, latitude, longitude, address, description, CP } = parameters;
 
         // Validar coordenadas
         if (latitude < -90 || latitude > 90) {
@@ -71,7 +175,7 @@ export async function executeServerAction(
             coordinates: { lat: latitude, lng: longitude },
             address: address || "",
             description: description || "",
-            CP: "",
+            CP: CP || "",
           },
           message: `Marcador "${name}" creado exitosamente en [${latitude.toFixed(4)}, ${longitude.toFixed(4)}]`,
         };
@@ -135,10 +239,16 @@ export async function executeServerAction(
           };
         }
 
-        // Retornar primer resultado
+        // Parsear la información estructurada
+        const parsedAddress = parseNominatimAddress(result[0]);
+
+        // Retornar primer resultado con información estructurada
         return {
           success: true,
-          data: result[0],
+          data: {
+            ...result[0],
+            parsed: parsedAddress,
+          },
           message: `Ubicación encontrada: ${result[0].display_name}`,
         };
       }
