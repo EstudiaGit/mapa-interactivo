@@ -1,56 +1,68 @@
 # Mapa Interactivo – Next.js + Leaflet
 
-Aplicación web moderna para la gestión y visualización interactiva de ubicaciones en un mapa, desarrollada con Next.js, React y Leaflet. Incluye chat asistido por IA y una arquitectura preparada para escalar y añadir nuevas funcionalidades.
+Aplicación web moderna para la gestión y visualización interactiva de ubicaciones en un mapa, desarrollada con Next.js, React y Leaflet. Incluye chat asistido por IA y una arquitectura modular, escalable y preparada para futuras integraciones.
 
 ---
 
 ## 🚀 Tecnologías Principales
 
-- **Framework:** [Next.js 16](https://nextjs.org/) (App Router)
-- **Frontend:** [React 19](https://react.dev/)
-- **Mapas:** [Leaflet](https://leafletjs.com/) + [react-leaflet](https://react-leaflet.js.org/)
-- **Estilos:** [Tailwind CSS](https://tailwindcss.com/)
-- **Validación:** [Zod](https://zod.dev/)
-- **Tipado:** [TypeScript](https://www.typescriptlang.org/)
-- **IA/Chat:** [@google/genai](https://www.npmjs.com/package/@google/genai), [@modelcontextprotocol/sdk](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
+- **Framework:** Next.js 16 (App Router)
+- **Frontend:** React 19
+- **Mapas:** Leaflet + react-leaflet
+- **Estilos:** Tailwind CSS
+- **Validación:** Zod
+- **Tipado:** TypeScript
+- **IA/Chat:** @google/genai, @modelcontextprotocol/sdk
 
 ---
 
 ## 📁 Estructura del Proyecto
 
-- `app/` – Páginas principales, layout global y estilos
-  - `page.tsx`: Página principal (orquesta Sidebar, Map y ChatWindow)
-  - `layout.tsx`: Layout raíz y fuentes globales
-  - `globals.css`: Estilos globales y Tailwind
-- `components/` – Componentes reutilizables
-  - `Map.tsx`: Contenedor del mapa interactivo (integración con Leaflet en próximos hitos)
-  - `Sidebar.tsx`: Listado de ubicaciones (mock data, integración futura con Zustand)
-  - `ChatWindow.tsx`: Chat flotante asistido por IA
-- `public/` – Recursos estáticos (SVGs, favicon)
-- `hooks/` – (Preparado para hooks personalizados)
-- Configuración:
+- **app/**  
+  Contiene la configuración principal de la aplicación:
+  - `page.tsx`: Página principal, orquesta los componentes clave.
+  - `layout.tsx`: Layout global y fuentes.
+  - `globals.css`: Estilos globales.
+  - `favicon.ico`: Icono de la aplicación.
+  - **api/**: Carpeta para futuros endpoints API.
+
+- **components/**  
+  Componentes reutilizables y especializados:
+  - Chat: `ChatWindow`, `ChatBubble`, `ChatMessage`, `ChatDock`, `ChatActionMessage`.
+  - UI: `Sidebar`, `MenuButton`, `Modal`, `ModalProvider`, `PromptDialog`, `ConfirmDialog`, `ToastContainer`.
+  - Mapas: `Map`, `MapLeaflet`.
+
+- **hooks/**  
+  Hooks personalizados para gestión de estado y acciones:
+  - `useChatActions`, `useChatStore`, `useMapStore`, `useModal`, `useModalStore`, `useServerActions`, `useToastStore`.
+
+- **public/**  
+  Recursos estáticos:
+  - Imágenes, íconos de mapas, SVGs y otros assets.
+
+- **Configuración raíz:**  
   - `package.json`, `tsconfig.json`, `tailwind.config.js`, `postcss.config.js`, `.gitignore`
 
 ---
 
 ## 🛠️ Instalación y Desarrollo
 
-1. **Instala dependencias:**
-   ```sh
+1. Instala las dependencias:
+   ```
    npm install
    ```
-2. **Desarrolla localmente:**
-   ```sh
+2. Inicia el entorno de desarrollo:
+   ```
    npm run dev
    ```
    Accede a [http://localhost:3000](http://localhost:3000)
 
-3. **Build para producción:**
-   ```sh
+3. Genera el build para producción:
+   ```
    npm run build
    ```
-4. **Inicia el servidor de producción:**
-   ```sh
+4. Inicia el servidor en producción:
+   ```
    npm start
    ```
 
@@ -63,21 +75,22 @@ Aplicación web moderna para la gestión y visualización interactiva de ubicaci
 
 ---
 
-## ✨ Características
+## ✨ Características Principales
 
-- **Mapa interactivo:** Preparado para integración con Leaflet y markers dinámicos.
-- **Gestión de ubicaciones:** Sidebar con mock data, preparado para integración con estado global.
-- **Chat asistente:** Ventana flotante para interacción con IA (búsqueda, ayuda, gestión de ubicaciones).
+- **Mapa interactivo:** Integración avanzada con Leaflet, preparado para markers dinámicos y futuras extensiones.
+- **Gestión de ubicaciones:** Sidebar con datos simulados, listo para integración con estado global y fuentes externas.
+- **Chat asistente:** Ventana flotante para interacción con IA, útil para búsqueda, ayuda y gestión de ubicaciones.
 - **Arquitectura escalable:** Código modular, tipado y preparado para futuras integraciones (Zustand, APIs externas).
-- **Estilos modernos:** Tailwind CSS y fuentes optimizadas.
+- **Estilos modernos:** Tailwind CSS y fuentes optimizadas para una experiencia visual atractiva.
 
 ---
 
-## 🤝 Contribución
+## 🤝 Recomendaciones para Contribución
 
 - Sigue las convenciones de Next.js, React y TypeScript.
-- Mantén el código modular y documentado.
-- Pull requests y sugerencias son bienvenidas.
+- Mantén el código modular, reutilizable y documentado.
+- Utiliza hooks personalizados para la gestión de estado y lógica.
+- Las pull requests y sugerencias son bienvenidas para mejorar la funcionalidad y la arquitectura.
 
 ---
 
