@@ -39,6 +39,12 @@ next-env.d.ts
 # Vercel deployment
 .vercel
 
-#docs
+# Docs / Markdown files
 /docs
-repomix-mapa-interactivo.md
+*.txt
+
+# Ignorar todos los archivos .md
+*.md
+
+# Excepción: NO ignorar el README.md
+!README.md
