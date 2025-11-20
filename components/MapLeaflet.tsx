@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css"; // estilos de Leaflet solo en el cliente
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap, CircleMarker } from "react-leaflet";
 import { type FC, Fragment, useEffect, useId, useState, useRef } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
+import AddMarkerModal from "./AddMarkerModal";
 import L from "leaflet";
 
 // Asegurar iconos por defecto de Leaflet desde /public
@@ -26,23 +27,18 @@ function InvalidateOnSidebarChange({ open }: { open?: boolean }) {
   return null;
 }
 
-function MapEventBinder() {
-  const addMarker = useMapStore((s) => s.addMarker);
-  const selectMarker = useMapStore((s) => s.selectMarker);
+function MapEventBinder({
+  onDoubleClick,
+}: {
+  onDoubleClick: (lat: number, lng: number) => void;
+}) {
   const setCenter = useMapStore((s) => s.setCenter);
   const setZoom = useMapStore((s) => s.setZoom);
 
   useMapEvents({
-    click(e) {
+    dblclick(e) {
       const { lat, lng } = e.latlng;
-      const id = addMarker({
-        name: `Nueva dirección ${Math.round(lat * 1000)}/${Math.round(lng * 1000)}`,
-        description: "",
-        address: "",
-        CP: "",
-        coordinates: { lat, lng },
-      });
-      selectMarker(id);
+      onDoubleClick(lat, lng);
     },
     moveend(e) {
       const c = e.target.getCenter();
@@ -92,10 +88,17 @@ type MapLeafletProps = { sidebarOpen?: boolean };
 
 const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
   const [mounted, setMounted] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [pendingCoordinates, setPendingCoordinates] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const mapKey = useId();
 
   const markers = useMapStore((s) => s.markers);
   const selectedId = useMapStore((s) => s.selectedId);
+  const addMarker = useMapStore((s) => s.addMarker);
+  const selectMarker = useMapStore((s) => s.selectMarker);
   const setCenter = useMapStore((s) => s.setCenter);
   const setZoom = useMapStore((s) => s.setZoom);
   const persistedCenter = useMapStore((s) => s.center);
@@ -126,22 +129,52 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
     }
   }, [mounted, setCenter, setZoom, persistedCenter, persistedZoom]);
 
+  const handleDoubleClick = (lat: number, lng: number) => {
+    setPendingCoordinates({ lat, lng });
+    setModalOpen(true);
+  };
+
+  const handleModalConfirm = (data: {
+    name: string;
+    address: string;
+    description: string;
+    CP: string;
+    coordinates: { lat: number; lng: number };
+  }) => {
+    const id = addMarker(data);
+    selectMarker(id);
+    setModalOpen(false);
+    setPendingCoordinates(null);
+  };
+
+  const handleModalCancel = () => {
+    setModalOpen(false);
+    setPendingCoordinates(null);
+  };
+
   if (!mounted) return null;
 
   return (
-    <MapContainer
-      key={mapKey}
-      center={persistedCenter ? [persistedCenter.lat, persistedCenter.lng] : DEFAULT_CENTER}
-      zoom={typeof persistedZoom === "number" ? persistedZoom : DEFAULT_ZOOM}
-      className="w-full h-full"
-      scrollWheelZoom
-      preferCanvas
-    >
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    <>
+      <AddMarkerModal
+        isOpen={modalOpen}
+        coordinates={pendingCoordinates}
+        onConfirm={handleModalConfirm}
+        onCancel={handleModalCancel}
       />
-      <MapEventBinder />
+      <MapContainer
+        key={mapKey}
+        center={persistedCenter ? [persistedCenter.lat, persistedCenter.lng] : DEFAULT_CENTER}
+        zoom={typeof persistedZoom === "number" ? persistedZoom : DEFAULT_ZOOM}
+        className="w-full h-full"
+        scrollWheelZoom
+        preferCanvas
+      >
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <MapEventBinder onDoubleClick={handleDoubleClick} />
       <SelectedMarkerFollower />
       <CenterZoomFollower />
       <InvalidateOnSidebarChange open={sidebarOpen} />
@@ -191,7 +224,8 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
           </Fragment>
         );
       })}
-    </MapContainer>
+      </MapContainer>
+    </>
   );
 };
 

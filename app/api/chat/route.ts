@@ -1,6 +1,6 @@
 // app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, type FunctionDeclaration, type Tool } from "@google/generative-ai";
 import type { AddressEntry } from "@/hooks/useMapStore";
 import { AVAILABLE_TOOLS, type ToolResult } from "@/lib/chat-tools";
 import { executeServerAction } from "./actions";
@@ -8,16 +8,16 @@ import { executeServerAction } from "./actions";
 /**
  * Convierte las herramientas a formato de functionDeclarations de Gemini
  */
-function convertToolsToFunctionDeclarations() {
+function convertToolsToFunctionDeclarations(): FunctionDeclaration[] {
   return AVAILABLE_TOOLS.map((tool) => ({
     name: tool.name,
     description: tool.description,
     parameters: {
-      type: "OBJECT",
+      type: "OBJECT" as any, // Usamos any para evitar problemas de tipos estrictos por ahora
       properties: Object.entries(tool.parameters.properties).reduce(
         (acc, [key, value]) => {
           acc[key] = {
-            type: value.type.toUpperCase(),
+            type: value.type.toUpperCase() as any,
             description: value.description,
           };
           return acc;
@@ -98,30 +98,11 @@ export async function POST(request: NextRequest) {
     // Inicializar Google AI
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Configurar modelo con herramientas
-    const modelConfig: any = {
-      model: "gemini-2.5-flash",
-      tools: [
-        {
-          functionDeclarations: convertToolsToFunctionDeclarations(),
-        },
-      ],
-    };
-
-    const model = genAI.getGenerativeModel(modelConfig);
-
     // Construir contexto del mapa
     const mapContext = buildMapContext(markers, center);
 
-    // Construir historial del chat
-    const chatHistory: any[] = [];
-
     // Mensaje del sistema
-    chatHistory.push({
-      role: "user",
-      parts: [
-        {
-          text: `Eres un asistente virtual especializado en ayudar con mapas interactivos y ubicaciones.
+    const systemInstruction = `Eres un asistente virtual especializado en ayudar con mapas interactivos y ubicaciones.
 
 ${mapContext}
 
@@ -131,35 +112,46 @@ Tu función es:
 3. Sugerir lugares según las necesidades del usuario
 4. Responder preguntas sobre los marcadores existentes
 
+WORKFLOW DE BÚSQUEDA Y AGREGADO:
+- Cuando el usuario pregunte por lugares (ej: "farmacias de guardia", "restaurantes italianos"), PRIMERO usa tu capacidad de búsqueda (Google Search) para encontrar información real y actualizada.
+- Presenta las opciones encontradas al usuario con sus direcciones.
+- SI el usuario elige una opción para añadir (ej: "añade la primera"), ENTONCES:
+  1. Usa la herramienta 'search_location' con el nombre/dirección para obtener las coordenadas precisas.
+  2. Usa la herramienta 'add_marker' con los datos obtenidos para guardarlo en el mapa.
+
 IMPORTANTE: Cuando el usuario pida agregar, buscar o gestionar marcadores, DEBES usar las herramientas disponibles.
 No solo describas lo que harías, EJECUTA las herramientas.
 
-Responde de forma concisa, amigable y útil.`,
-        },
-      ],
+Responde de forma concisa, amigable y útil.`;
+
+    // Configurar herramientas
+    // Nota: googleSearch está disponible en versiones recientes de @google/generative-ai
+    const tools: Tool[] = [
+      {
+        functionDeclarations: convertToolsToFunctionDeclarations(),
+      },
+      {
+        // @ts-ignore - googleSearch puede no estar en los tipos de la versión instalada pero es soportado por la API
+        googleSearch: {},
+      },
+    ];
+
+    // Obtener modelo
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash", // IMPERATIVO: Usar gemini-2.5-flash
+      systemInstruction: systemInstruction,
+      tools: tools,
     });
 
-    chatHistory.push({
-      role: "model",
-      parts: [
-        {
-          text: "Entendido. Estoy listo para ayudarte con el mapa. Puedo agregar marcadores, buscar lugares, listar tus ubicaciones y más. ¿Qué necesitas?",
-        },
-      ],
-    });
+    // Preparar historial
+    const history = conversationHistory.map((msg: any) => ({
+      role: msg.role === "assistant" ? "model" : "user", // Mapeo correcto para old SDK
+      parts: [{ text: msg.parts }],
+    }));
 
-    // Agregar historial previo
-    if (conversationHistory && conversationHistory.length > 0) {
-      conversationHistory.forEach((msg: any) => {
-        chatHistory.push({
-          role: msg.role === "model" ? "model" : "user",
-          parts: [{ text: msg.parts }],
-        });
-      });
-    }
-
+    // Iniciar chat
     const chat = model.startChat({
-      history: chatHistory,
+      history: history,
       generationConfig: {
         temperature: 0.7,
         topK: 40,
@@ -168,9 +160,10 @@ Responde de forma concisa, amigable y útil.`,
       },
     });
 
-    // Enviar mensaje del usuario
+    // Enviar mensaje
     let result = await chat.sendMessage(userMessage);
-    let response = result.response;
+    let response = await result.response;
+    let responseText = response.text();
 
     const toolsUsed: Array<{
       name: string;
@@ -178,10 +171,10 @@ Responde de forma concisa, amigable y útil.`,
       result: ToolResult;
     }> = [];
 
-    // Verificar si hay function calls
-    const functionCalls = response.functionCalls?.() || [];
+    // Manejo de Function Calling
+    const functionCalls = response.functionCalls();
 
-    if (functionCalls.length > 0) {
+    if (functionCalls && functionCalls.length > 0) {
       console.log(
         "🔧 Function calls detectados en servidor:",
         functionCalls.length,
@@ -193,13 +186,13 @@ Responde de forma concisa, amigable y útil.`,
         // Ejecutar la acción en el servidor
         const toolResult = await executeServerAction(
           call.name,
-          call.args,
+          call.args || {},
           markers,
         );
 
         toolsUsed.push({
           name: call.name,
-          parameters: call.args,
+          parameters: call.args || {},
           result: toolResult,
         });
 
@@ -213,13 +206,14 @@ Responde de forma concisa, amigable y útil.`,
           },
         ];
 
-        // Continuar la conversación
+        // Continuar la conversación con el resultado
         result = await chat.sendMessage(functionResponse);
-        response = result.response;
+        response = await result.response;
       }
+      
+      // Actualizar texto final después de las herramientas
+      responseText = response.text();
     }
-
-    const responseText = response.text();
 
     // Retornar respuesta
     return NextResponse.json({
