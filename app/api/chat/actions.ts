@@ -1,4 +1,5 @@
 // app/api/chat/actions.ts
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { AddressEntry } from "@/hooks/useMapStore";
 import type { ToolResult } from "@/lib/chat-tools";
 
@@ -135,6 +136,37 @@ async function searchLocation(query: string): Promise<any> {
 }
 
 /**
+ * Realiza una búsqueda en Google usando una instancia separada de Gemini
+ * Esto evita el conflicto entre Grounding y Function Calling en el modelo principal
+ */
+async function performWebSearch(query: string): Promise<string> {
+  try {
+    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) throw new Error("API Key no configurada");
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      tools: [{ googleSearch: {} } as any], // Cast as any para evitar errores de tipo si la versión de SDK es antigua
+    });
+
+    const prompt = `Busca información actualizada sobre: "${query}".
+    Responde con un resumen útil y conciso.
+    Si encuentras lugares específicos (restaurantes, tiendas, etc.), incluye sus nombres y direcciones si están disponibles.
+    Formato deseado:
+    - Resumen general
+    - Lista de lugares (si aplica): Nombre - Dirección (Intenta proporcionar solo calle y número para facilitar la geolocalización)`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error("Error en performWebSearch:", error);
+    return "Lo siento, hubo un error al realizar la búsqueda en internet.";
+  }
+}
+
+/**
  * Ejecuta una acción en el servidor y retorna el resultado
  * Las acciones NO modifican el store directamente (está en el cliente)
  * En su lugar, retornan datos para que el cliente los aplique
@@ -250,6 +282,19 @@ export async function executeServerAction(
             parsed: parsedAddress,
           },
           message: `Ubicación encontrada: ${result[0].display_name}`,
+        };
+      }
+
+      case "search_web": {
+        const { query } = parameters;
+        
+        // Realizar búsqueda web con "Nested Grounding"
+        const searchResult = await performWebSearch(query);
+
+        return {
+          success: true,
+          data: { searchResult },
+          message: searchResult, // El mensaje será el contenido encontrado
         };
       }
 

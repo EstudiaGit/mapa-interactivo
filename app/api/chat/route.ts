@@ -112,12 +112,16 @@ Tu función es:
 3. Sugerir lugares según las necesidades del usuario
 4. Responder preguntas sobre los marcadores existentes
 
+HERRAMIENTAS DISPONIBLES:
+- Tienes acceso a una herramienta especial llamada 'search_web'. ÚSALA SIEMPRE que necesites información del mundo real, actual o que no esté en tu conocimiento base (ej: "restaurantes abiertos ahora", "dirección de X sitio", "eventos en Madrid").
+- NO inventes direcciones ni lugares. Si no lo sabes, usa 'search_web'.
+
 WORKFLOW DE BÚSQUEDA Y AGREGADO:
-- Cuando el usuario pregunte por lugares (ej: "farmacias de guardia", "restaurantes italianos"), PRIMERO usa tu capacidad de búsqueda (Google Search) para encontrar información real y actualizada.
-- Presenta las opciones encontradas al usuario con sus direcciones.
-- SI el usuario elige una opción para añadir (ej: "añade la primera"), ENTONCES:
-  1. Usa la herramienta 'search_location' con el nombre/dirección para obtener las coordenadas precisas.
-  2. Usa la herramienta 'add_marker' con los datos obtenidos para guardarlo en el mapa.
+1. BÚSQUEDA: Cuando el usuario pregunte por lugares (ej: "farmacias de guardia", "restaurantes italianos"), PRIMERO usa la herramienta 'search_web' para encontrar información real.
+2. PRESENTACIÓN: El sistema te devolverá un resumen con los lugares encontrados. Preséntalos al usuario.
+3. AGREGADO: SI el usuario elige una opción para añadir (ej: "añade la primera"), ENTONCES:
+   a. Usa la herramienta 'search_location'. IMPORTANTE: En el parámetro 'query', usa SOLO la calle y el número (ej: "Calle Fernando Guanarteme, 46"). ELIMINA el nombre del negocio, código postal, ciudad y provincia, o la búsqueda fallará.
+   b. Usa la herramienta 'add_marker' con los datos obtenidos para guardarlo en el mapa.
 
 IMPORTANTE: Cuando el usuario pida agregar, buscar o gestionar marcadores, DEBES usar las herramientas disponibles.
 No solo describas lo que harías, EJECUTA las herramientas.
@@ -130,10 +134,10 @@ Responde de forma concisa, amigable y útil.`;
       {
         functionDeclarations: convertToolsToFunctionDeclarations(),
       },
-      {
-        // @ts-ignore - googleSearch puede no estar en los tipos de la versión instalada pero es soportado por la API
-        googleSearch: {},
-      },
+      // {
+      //   // @ts-ignore - googleSearch puede no estar en los tipos de la versión instalada pero es soportado por la API
+      //   googleSearch: {},
+      // },
     ];
 
     // Obtener modelo
@@ -171,15 +175,21 @@ Responde de forma concisa, amigable y útil.`;
       result: ToolResult;
     }> = [];
 
-    // Manejo de Function Calling
-    const functionCalls = response.functionCalls();
+    // Manejo de Function Calling (Iterativo para soportar secuencias como search -> add)
+    let functionCalls = response.functionCalls();
+    let depth = 0;
+    const MAX_DEPTH = 5;
 
-    if (functionCalls && functionCalls.length > 0) {
+    while (functionCalls && functionCalls.length > 0 && depth < MAX_DEPTH) {
+      depth++;
       console.log(
-        "🔧 Function calls detectados en servidor:",
+        `🔧 Function calls detectados en servidor (Profundidad ${depth}):`,
         functionCalls.length,
       );
 
+      // Ejecutar todas las llamadas de este turno
+      const functionResponses = [];
+      
       for (const call of functionCalls) {
         console.log("  → Ejecutando:", call.name, call.args);
 
@@ -196,22 +206,28 @@ Responde de forma concisa, amigable y útil.`;
           result: toolResult,
         });
 
-        // Enviar resultado de vuelta a la IA
-        const functionResponse = [
-          {
-            functionResponse: {
-              name: call.name,
-              response: toolResult,
-            },
+        // Preparar respuesta para la IA
+        functionResponses.push({
+          functionResponse: {
+            name: call.name,
+            response: toolResult,
           },
-        ];
+        });
+      }
 
-        // Continuar la conversación con el resultado
-        result = await chat.sendMessage(functionResponse);
+      // Enviar resultados de vuelta a la IA
+      if (functionResponses.length > 0) {
+        // Continuar la conversación con los resultados
+        result = await chat.sendMessage(functionResponses);
         response = await result.response;
+        
+        // Verificar si hay NUEVAS llamadas a funciones en la respuesta
+        functionCalls = response.functionCalls();
+      } else {
+        functionCalls = undefined;
       }
       
-      // Actualizar texto final después de las herramientas
+      // Actualizar texto final
       responseText = response.text();
     }
 

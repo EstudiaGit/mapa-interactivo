@@ -48,3 +48,6 @@ next-env.d.ts
 
 # Excepción: NO ignorar el README.md
 !README.md
+#!INCIDENT_LOG.md
+#!SESSION*.md
+#!integracion_busqueda_google_maps_direcciones.md

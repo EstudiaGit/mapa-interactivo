@@ -137,6 +137,20 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
       required: ["query"],
     },
   },
+  {
+    name: "search_web",
+    description: "Busca información en tiempo real en internet (Google). Usa esta herramienta para encontrar lugares, direcciones, horarios, eventos o cualquier información actual que no tengas en tu conocimiento base.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "La consulta de búsqueda para Google (ej: 'mejores cafeterías en Madrid', 'farmacias de guardia cerca de mí')",
+        },
+      },
+      required: ["query"],
+    },
+  },
 ];
 
 /**
