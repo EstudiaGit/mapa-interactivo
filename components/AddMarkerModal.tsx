@@ -2,6 +2,8 @@
 
 import { type FC, useState } from "react";
 import { X } from "lucide-react";
+import { useMapStore } from "@/hooks/useMapStore";
+import { getUniqueGroups, DEFAULT_GROUP } from "@/types";
 
 interface AddMarkerModalProps {
   isOpen: boolean;
@@ -12,6 +14,8 @@ interface AddMarkerModalProps {
     description: string;
     CP: string;
     coordinates: { lat: number; lng: number };
+    group?: string;
+    tags?: string[];
   }) => void;
   onCancel: () => void;
 }
@@ -26,6 +30,12 @@ const AddMarkerModal: FC<AddMarkerModalProps> = ({
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [CP, setCP] = useState("");
+  const [group, setGroup] = useState<string>(DEFAULT_GROUP);
+  const [tagsInput, setTagsInput] = useState("");
+
+  // Obtener grupos existentes para autocompletado
+  const markers = useMapStore((s) => s.markers);
+  const uniqueGroups = getUniqueGroups(markers);
 
   if (!isOpen || !coordinates) return null;
 
@@ -35,18 +45,28 @@ const AddMarkerModal: FC<AddMarkerModalProps> = ({
       alert("El nombre es obligatorio");
       return;
     }
+    // Procesar tags: separar por comas y filtrar vacíos
+    const tags = tagsInput
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t !== "");
+
     onConfirm({
       name: name.trim(),
       address: address.trim(),
       description: description.trim(),
       CP: CP.trim(),
       coordinates,
+      group: group.trim() || DEFAULT_GROUP,
+      tags: tags.length > 0 ? tags : undefined,
     });
     // Limpiar formulario
     setName("");
     setAddress("");
     setDescription("");
     setCP("");
+    setGroup(DEFAULT_GROUP);
+    setTagsInput("");
   };
 
   const handleCancel = () => {
@@ -55,6 +75,8 @@ const AddMarkerModal: FC<AddMarkerModalProps> = ({
     setAddress("");
     setDescription("");
     setCP("");
+    setGroup(DEFAULT_GROUP);
+    setTagsInput("");
     onCancel();
   };
 
@@ -145,6 +167,46 @@ const AddMarkerModal: FC<AddMarkerModalProps> = ({
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             />
+          </div>
+
+          {/* Grupo/Carpeta (con autocompletado) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Carpeta
+            </label>
+            <input
+              type="text"
+              list="group-suggestions"
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+              placeholder="Ej: Trabajo, Farmacias, Restaurantes..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <datalist id="group-suggestions">
+              {uniqueGroups.map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
+            <p className="mt-1 text-xs text-gray-500">
+              Escribe un nombre nuevo o selecciona uno existente
+            </p>
+          </div>
+
+          {/* Tags/Etiquetas */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Etiquetas
+            </label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="Ej: wifi, terraza, parking"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Separa las etiquetas con comas
+            </p>
           </div>
 
           {/* Botones */}

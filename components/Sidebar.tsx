@@ -7,6 +7,7 @@ import { useMapStore } from "@/hooks/useMapStore";
 import { useToastStore } from "@/hooks/useToastStore";
 import { useModal } from "@/hooks/useModal";
 import FocusTrap from "focus-trap-react";
+import { groupLocations, getGroupStats } from "@/types";
 
 // Nuevas props para controlar la visibilidad en dispositivos móviles
 interface SidebarProps {
@@ -119,6 +120,10 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
       return name.includes(q) || desc.includes(q) || addr.includes(q) || cp.includes(q) || coords.includes(q);
     });
   }, [markers, query]);
+
+  // Agrupar markers filtrados por grupo
+  const groupedMarkers = useMemo(() => groupLocations(filtered), [filtered]);
+  const groupStats = useMemo(() => getGroupStats(filtered), [filtered]);
 
   const onAddClick = () => {
     toast({ type: "info", message: "Para añadir una nueva dirección, haz click en el mapa." });
@@ -498,137 +503,166 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      {/* Lista de Ubicaciones */}
+      {/* Lista de Ubicaciones Agrupadas */}
       <div className="mt-4 flex-grow overflow-y-auto pr-2">
-        <ul className="space-y-3">
-          {filtered.map((m) => (
-            <li
-              key={m.id}
-              className={`bg-gray-700 p-3 rounded-lg flex justify-between items-start border ${
-                selectedId === m.id ? "border-blue-500" : "border-transparent"
-              }`}
-            >
-              <button
-                className="text-left"
-                onClick={() => selectMarker(m.id)}
-                title="Seleccionar en el mapa"
-              >
-                {/* Name inline */}
-                {inlineEdit.id === m.id && inlineEdit.field === "name" ? (
-                  <input
-                    className="font-semibold w-full bg-gray-700 border border-blue-500 rounded px-2 py-1"
-                    value={inlineEdit.value}
-                    onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
-                    onBlur={commitInline}
-                    onKeyDown={onInlineKey}
-                    autoFocus
-                  />
-                ) : (
-                  <h3
-                    className="font-semibold hover:underline cursor-text"
-                    title="Editar nombre"
-                    onClick={() => startInline(m, "name")}
-                  >
-                    {m.name || "(Sin título)"}
-                  </h3>
-                )}
+        {Object.keys(groupedMarkers).length === 0 ? (
+          <p className="text-sm text-gray-400">No hay resultados para &quot;{query}&quot;</p>
+        ) : (
+          Object.entries(groupedMarkers)
+            .sort(([a], [b]) => {
+              // Inbox siempre primero
+              if (a === "Inbox") return -1;
+              if (b === "Inbox") return 1;
+              return a.localeCompare(b);
+            })
+            .map(([groupName, items]) => (
+              <details key={groupName} open className="mb-3">
+                <summary className="cursor-pointer font-bold text-lg text-gray-100 hover:text-white mb-2 select-none">
+                  {groupName} ({groupStats[groupName] || 0})
+                </summary>
+                <ul className="space-y-3 ml-2">
+                  {items.map((m) => (
+                    <li
+                      key={m.id}
+                      className={`bg-gray-700 p-3 rounded-lg flex justify-between items-start border ${
+                        selectedId === m.id ? "border-blue-500" : "border-transparent"
+                      }`}
+                    >
+                      <button
+                        className="text-left flex-grow"
+                        onClick={() => selectMarker(m.id)}
+                        title="Seleccionar en el mapa"
+                      >
+                        {/* Name inline */}
+                        {inlineEdit.id === m.id && inlineEdit.field === "name" ? (
+                          <input
+                            className="font-semibold w-full bg-gray-700 border border-blue-500 rounded px-2 py-1"
+                            value={inlineEdit.value}
+                            onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
+                            onBlur={commitInline}
+                            onKeyDown={onInlineKey}
+                            autoFocus
+                          />
+                        ) : (
+                          <h3
+                            className="font-semibold hover:underline cursor-text"
+                            title="Editar nombre"
+                            onClick={() => startInline(m, "name")}
+                          >
+                            {m.name || "(Sin título)"}
+                          </h3>
+                        )}
 
-                {/* Description inline */}
-                {inlineEdit.id === m.id && inlineEdit.field === "description" ? (
-                  <textarea
-                    className="mt-1 w-full bg-gray-700 border border-blue-500 rounded px-2 py-1 text-sm text-gray-200"
-                    value={inlineEdit.value}
-                    onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
-                    onBlur={commitInline}
-                    onKeyDown={onInlineKey}
-                    rows={2}
-                    autoFocus
-                  />
-                ) : (
-                  <p
-                    className="text-sm text-gray-400 hover:underline cursor-text"
-                    title="Editar descripción"
-                    onClick={() => startInline(m, "description")}
-                  >
-                    {m.description || <span className="italic text-gray-500">Añade una descripción</span>}
-                  </p>
-                )}
+                        {/* Tags pills */}
+                        {m.tags && m.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {m.tags.map((tag, idx) => (
+                              <span
+                                key={idx}
+                                className="inline-block bg-gray-600 text-gray-200 text-xs px-2 py-0.5 rounded-full"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
 
-                {/* Address inline */}
-                {inlineEdit.id === m.id && inlineEdit.field === "address" ? (
-                  <input
-                    className="mt-1 w-full bg-gray-700 border border-blue-500 rounded px-2 py-1 text-xs text-gray-200"
-                    value={inlineEdit.value}
-                    onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
-                    onBlur={commitInline}
-                    onKeyDown={onInlineKey}
-                    autoFocus
-                  />
-                ) : (
-                  <p
-                    className="text-xs text-gray-500 hover:underline cursor-text"
-                    title="Editar dirección"
-                    onClick={() => startInline(m, "address")}
-                  >
-                    {m.address || <span className="italic text-gray-600">Añade una dirección</span>}
-                  </p>
-                )}
+                        {/* Description inline */}
+                        {inlineEdit.id === m.id && inlineEdit.field === "description" ? (
+                          <textarea
+                            className="mt-1 w-full bg-gray-700 border border-blue-500 rounded px-2 py-1 text-sm text-gray-200"
+                            value={inlineEdit.value}
+                            onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
+                            onBlur={commitInline}
+                            onKeyDown={onInlineKey}
+                            rows={2}
+                            autoFocus
+                          />
+                        ) : (
+                          <p
+                            className="text-sm text-gray-400 hover:underline cursor-text mt-1"
+                            title="Editar descripción"
+                            onClick={() => startInline(m, "description")}
+                          >
+                            {m.description || <span className="italic text-gray-500">Añade una descripción</span>}
+                          </p>
+                        )}
 
-                {/* CP inline */}
-                {inlineEdit.id === m.id && inlineEdit.field === "CP" ? (
-                  <input
-                    className="mt-1 w-full bg-gray-700 border border-blue-500 rounded px-2 py-1 text-xs text-gray-200"
-                    value={inlineEdit.value}
-                    onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
-                    onBlur={commitInline}
-                    onKeyDown={onInlineKey}
-                    autoFocus
-                  />
-                ) : (
-                  <p
-                    className="text-xs text-gray-500 hover:underline cursor-text"
-                    title="Editar CP"
-                    onClick={() => startInline(m, "CP")}
-                  >
-                    {m.CP || <span className="italic text-gray-600">Añade CP</span>}
-                  </p>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                  {m.coordinates.lat.toFixed(5)}, {m.coordinates.lng.toFixed(5)}
-                </p>
-              </button>
-              <div className="flex flex-col gap-1 items-end">
-                <div className="flex gap-1">
-                  <button
-                    className="text-gray-300 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
-                    onClick={() => onRenameClick(m.id, m.name)}
-                    title="Renombrar"
-                  >
-                    Renombrar
-                  </button>
-                  <button
-                    className="text-gray-300 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
-                    onClick={() => openEdit(m)}
-                    title="Editar"
-                  >
-                    Editar
-                  </button>
-                </div>
-                <button
-                  className="text-gray-400 hover:text-red-400 text-xl leading-none"
-                  aria-label={`Eliminar ${m.name ?? "Marcador"}`}
-                  onClick={() => onDeleteClick(m.id, m.name)}
-                  title="Eliminar"
-                >
-                  &times;
-                </button>
-              </div>
-            </li>
-          ))}
-          {filtered.length === 0 && (
-            <li className="text-sm text-gray-400">No hay resultados para &quot;{query}&quot;</li>
-          )}
-        </ul>
+                        {/* Address inline */}
+                        {inlineEdit.id === m.id && inlineEdit.field === "address" ? (
+                          <input
+                            className="mt-1 w-full bg-gray-700 border border-blue-500 rounded px-2 py-1 text-xs text-gray-200"
+                            value={inlineEdit.value}
+                            onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
+                            onBlur={commitInline}
+                            onKeyDown={onInlineKey}
+                            autoFocus
+                          />
+                        ) : (
+                          <p
+                            className="text-xs text-gray-500 hover:underline cursor-text mt-1"
+                            title="Editar dirección"
+                            onClick={() => startInline(m, "address")}
+                          >
+                            {m.address || <span className="italic text-gray-600">Añade una dirección</span>}
+                          </p>
+                        )}
+
+                        {/* CP inline */}
+                        {inlineEdit.id === m.id && inlineEdit.field === "CP" ? (
+                          <input
+                            className="mt-1 w-full bg-gray-700 border border-blue-500 rounded px-2 py-1 text-xs text-gray-200"
+                            value={inlineEdit.value}
+                            onChange={(e) => setInlineEdit((s) => ({ ...s, value: e.target.value }))}
+                            onBlur={commitInline}
+                            onKeyDown={onInlineKey}
+                            autoFocus
+                          />
+                        ) : (
+                          <p
+                            className="text-xs text-gray-500 hover:underline cursor-text mt-1"
+                            title="Editar CP"
+                            onClick={() => startInline(m, "CP")}
+                          >
+                            {m.CP || <span className="italic text-gray-600">Añade CP</span>}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500 mt-1">
+                          {m.coordinates.lat.toFixed(5)}, {m.coordinates.lng.toFixed(5)}
+                        </p>
+                      </button>
+                      <div className="flex flex-col gap-1 items-end ml-2">
+                        <div className="flex gap-1">
+                          <button
+                            className="text-gray-300 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
+                            onClick={() => onRenameClick(m.id, m.name)}
+                            title="Renombrar"
+                          >
+                            Renombrar
+                          </button>
+                          <button
+                            className="text-gray-300 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
+                            onClick={() => openEdit(m)}
+                            title="Editar"
+                          >
+                            Editar
+                          </button>
+                        </div>
+                        <button
+                          className="text-gray-400 hover:text-red-400 text-xl leading-none"
+                          aria-label={`Eliminar ${m.name ?? "Marcador"}`}
+                          onClick={() => onDeleteClick(m.id, m.name)}
+                          title="Eliminar"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))
+        )}
       </div>
 
       {/* Botones de Acción */}

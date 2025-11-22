@@ -4,32 +4,30 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { 
+  MarkerId, 
+  Location, 
+  LocationInput, 
+  LocationPatch 
+} from "@/types";
+import { normalizeLocation, DEFAULT_GROUP } from "@/types";
 
-export type MarkerId = string;
+// Alias para retrocompatibilidad: AddressEntry ahora es Location
+export type { Location as AddressEntry, MarkerId };
 
-export type Coordinates = { lat: number; lng: number };
-
-export type AddressEntry = {
-  id: MarkerId;
-  name: string;
-  description: string;
-  address: string;
-  CP: string;
-  coordinates: Coordinates;
-};
 
 export type MapState = {
-  markers: AddressEntry[];
+  markers: Location[];
   selectedId: MarkerId | null;
   // view state (opcional)
   center: { lat: number; lng: number } | null;
   zoom: number | null;
 
   // actions
-  addMarker: (entry: Omit<AddressEntry, "id"> & { id?: MarkerId }) => MarkerId;
+  addMarker: (entry: LocationInput) => MarkerId;
   removeMarker: (id: MarkerId) => void;
   renameMarker: (id: MarkerId, name: string) => void; // renombrar por "name"
-  updateMarker: (id: MarkerId, patch: Partial<Pick<AddressEntry, "name" | "description" | "address" | "CP">>) => void;
+  updateMarker: (id: MarkerId, patch: LocationPatch) => void;
   setCenter: (lat: number, lng: number) => void;
   setZoom: (zoom: number) => void;
   selectMarker: (id: MarkerId | null) => void;
@@ -54,13 +52,11 @@ export const useMapStore = create<MapState>()(
 
       addMarker: (entry) => {
         const id = entry.id ?? genId();
-        const newEntry: AddressEntry = {
-          id,
-          name: entry.name,
-          description: entry.description,
-          address: entry.address,
-          CP: entry.CP,
-          coordinates: entry.coordinates,
+        // Normalizar entrada para asegurar group y tags existan
+        const normalized = normalizeLocation({ ...entry, id });
+        const newEntry: Location = {
+          ...normalized,
+          id, // Asegurar ID correcto
         };
         set((s) => ({ markers: [...s.markers, newEntry] }));
         return id;
@@ -86,7 +82,7 @@ export const useMapStore = create<MapState>()(
     }),
     {
       name: "map-store",
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         markers: state.markers,
@@ -97,22 +93,35 @@ export const useMapStore = create<MapState>()(
       migrate: (persistedState: unknown, version) => {
         if (!persistedState || typeof persistedState !== 'object') return persistedState as MapState;
         const state = persistedState as Record<string, unknown>;
+        
+        // v1 -> v2: Migración del esquema antiguo {id, lat, lng, title?} a AddressEntry
         if (version < 2 && Array.isArray(state.markers)) {
-          // Transformar del esquema antiguo {id, lat, lng, title?} al nuevo AddressEntry
           const migrated = {
             ...state,
-            markers: state.markers.map((m: Record<string, unknown>) => ({
-              id: m.id ?? genId(),
-              name: m.title ?? "(Sin título)",
+            markers: state.markers.map((m: Record<string, unknown>) => normalizeLocation({
+              id: (m.id as string) ?? genId(),
+              name: (m.title as string) ?? "(Sin título)",
               description: "",
               address: "",
               CP: "",
-              coordinates: { lat: m.lat, lng: m.lng },
+              coordinates: { lat: m.lat as number, lng: m.lng as number },
+              // group y tags se añadirán por normalizeLocation
             })),
           };
           return migrated;
         }
-        // v2 -> v3: simplemente asegurar que center/zoom existan o queden como están
+        
+        // v2/v3 -> v4: Añadir group y tags a datos existentes
+        if (version < 4 && Array.isArray(state.markers)) {
+          const migrated = {
+            ...state,
+            markers: state.markers.map((m: Record<string, unknown>) => 
+              normalizeLocation(m as Partial<Location>)
+            ),
+          };
+          return migrated;
+        }
+        
         return persistedState as MapState;
       },
     }
