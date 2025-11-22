@@ -7,7 +7,7 @@ import { useMapStore } from "@/hooks/useMapStore";
 import { useToastStore } from "@/hooks/useToastStore";
 import { useModal } from "@/hooks/useModal";
 import FocusTrap from "focus-trap-react";
-import { groupLocations, getGroupStats } from "@/types";
+import { groupLocations, getGroupStats, getUniqueGroups, DEFAULT_GROUP } from "@/types";
 
 // Nuevas props para controlar la visibilidad en dispositivos móviles
 interface SidebarProps {
@@ -124,6 +124,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   // Agrupar markers filtrados por grupo
   const groupedMarkers = useMemo(() => groupLocations(filtered), [filtered]);
   const groupStats = useMemo(() => getGroupStats(filtered), [filtered]);
+  const uniqueGroups = useMemo(() => getUniqueGroups(markers), [markers]);
 
   const onAddClick = () => {
     toast({ type: "info", message: "Para añadir una nueva dirección, haz click en el mapa." });
@@ -291,6 +292,11 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", description: "", address: "", CP: "" });
   const [originalForm, setOriginalForm] = useState({ name: "", description: "", address: "", CP: "" });
+  // NUEVOS: Estados para group y tags
+  const [editedGroup, setEditedGroup] = useState<string>(DEFAULT_GROUP);
+  const [editedTags, setEditedTags] = useState<string>("");
+  const [originalGroup, setOriginalGroup] = useState<string>(DEFAULT_GROUP);
+  const [originalTags, setOriginalTags] = useState<string>("");
   const [errors, setErrors] = useState<{ name?: string; CP?: string }>({});
   const [announce, setAnnounce] = useState(""); // aria-live
   // const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -322,13 +328,22 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
     form.name !== originalForm.name ||
     form.description !== originalForm.description ||
     form.address !== originalForm.address ||
-    form.CP !== originalForm.CP;
+    form.CP !== originalForm.CP ||
+    editedGroup !== originalGroup ||
+    editedTags !== originalTags;
 
   const openEdit = (m: (typeof markers)[number]) => {
     const init = { name: m.name || "", description: m.description || "", address: m.address || "", CP: m.CP || "" };
+    const groupInit = m.group || DEFAULT_GROUP;
+    const tagsInit = (m.tags || []).join(", ");
+    
     setEditingId(m.id);
     setForm(init);
     setOriginalForm(init);
+    setEditedGroup(groupInit);
+    setOriginalGroup(groupInit);
+    setEditedTags(tagsInit);
+    setOriginalTags(tagsInit);
     setErrors({});
     setAnnounce("");
     // focus se gestionará en el render con autoFocus
@@ -360,7 +375,19 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
       }, 0);
       return;
     }
-    updateMarker(editingId, { ...form });
+    
+    // Procesar grupo y tags
+    const finalGroup = editedGroup.trim() || DEFAULT_GROUP;
+    const finalTags = editedTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t !== "");
+    
+    updateMarker(editingId, { 
+      ...form,
+      group: finalGroup,
+      tags: finalTags.length > 0 ? finalTags : undefined,
+    });
     setEditingId(null);
     toast({ type: "success", message: "Dirección actualizada" });
   };
@@ -752,7 +779,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
                 />
               </label>
 
-              <label className="block text-sm mb-4">
+              <label className="block text-sm mb-2">
                 CP
                 <input
                   className={`mt-1 w-full p-2 rounded bg-gray-700 border ${errors.CP ? "border-red-500" : "border-gray-600"} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
@@ -764,6 +791,59 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
                   onChange={(e) => setForm((f) => ({ ...f, CP: e.target.value }))}
                 />
                 {errors.CP && <span id="error-cp" className="text-red-400 text-xs">{errors.CP}</span>}
+              </label>
+
+              {/* Grupo/Carpeta (con autocompletado) */}
+              <label className="block text-sm mb-2">
+                Carpeta
+                <input
+                  type="text"
+                  list="groups-edit-list"
+                  value={editedGroup}
+                  onChange={(e) => setEditedGroup(e.target.value)}
+                  placeholder="Ej: Trabajo, Farmacias, Restaurantes..."
+                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                <datalist id="groups-edit-list">
+                  {uniqueGroups.map((g) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
+                <p className="mt-1 text-xs text-gray-400">
+                  Escribe un nombre nuevo o selecciona uno existente
+                </p>
+              </label>
+
+              {/* Tags/Etiquetas con vista previa */}
+              <label className="block text-sm mb-4">
+                Etiquetas
+                <input
+                  type="text"
+                  value={editedTags}
+                  onChange={(e) => setEditedTags(e.target.value)}
+                  placeholder="Ej: wifi, terraza, parking"
+                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                  Separa las etiquetas con comas
+                </p>
+                {/* Vista previa de pills en tiempo real */}
+                {editedTags.trim() && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {editedTags
+                      .split(",")
+                      .map((t) => t.trim())
+                      .filter((t) => t !== "")
+                      .map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-block bg-gray-600 text-gray-200 text-xs px-2 py-0.5 rounded-full"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                  </div>
+                )}
               </label>
 
               <div className="flex justify-end gap-2">
