@@ -8,6 +8,8 @@ import { useToastStore } from "@/hooks/useToastStore";
 import { useModal } from "@/hooks/useModal";
 import FocusTrap from "focus-trap-react";
 import { groupLocations, getGroupStats, getUniqueGroups, DEFAULT_GROUP } from "@/types";
+import { getGroupColor } from "@/lib/colors";
+import LocationModal from "./LocationModal";
 
 // Nuevas props para controlar la visibilidad en dispositivos móviles
 interface SidebarProps {
@@ -126,9 +128,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const groupStats = useMemo(() => getGroupStats(filtered), [filtered]);
   const uniqueGroups = useMemo(() => getUniqueGroups(markers), [markers]);
 
-  const onAddClick = () => {
-    toast({ type: "info", message: "Para añadir una nueva dirección, haz click en el mapa." });
-  };
+
   // Importar/Exportar JSON con el esquema AddressEntry
   const onImportClick = () => {
     const input = document.createElement("input");
@@ -289,107 +289,36 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   };
 
   // Modal de edición completa con validaciones y accesibilidad
+  // Modal de edición / creación unificado
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", address: "", CP: "" });
-  const [originalForm, setOriginalForm] = useState({ name: "", description: "", address: "", CP: "" });
-  // NUEVOS: Estados para group y tags
-  const [editedGroup, setEditedGroup] = useState<string>(DEFAULT_GROUP);
-  const [editedTags, setEditedTags] = useState<string>("");
-  const [originalGroup, setOriginalGroup] = useState<string>(DEFAULT_GROUP);
-  const [originalTags, setOriginalTags] = useState<string>("");
-  const [errors, setErrors] = useState<{ name?: string; CP?: string }>({});
-  const [announce, setAnnounce] = useState(""); // aria-live
-  // const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const computeErrors = useCallback((data = form) => {
-    const errs: { name?: string; CP?: string } = {};
-    if (!data.name || data.name.trim().length === 0) {
-      errs.name = "El nombre es obligatorio";
+  const mapCenter = useMapStore((s) => s.center);
+  const addMarker = useMapStore((s) => s.addMarker);
+
+
+  const editingLocation = useMemo(() => 
+    markers.find(m => m.id === editingId) || null, 
+  [markers, editingId]);
+
+  const handleSaveLocation = (data: any) => {
+    if (editingLocation) {
+      // Edición
+      updateMarker(editingLocation.id, data);
+      toast({ type: "success", message: "Dirección actualizada" });
+      setEditingId(null);
+    } else {
+      // Creación
+      // Usar coordenadas del formulario si existen, o centro del mapa, o default
+      const coords = data.coordinates || mapCenter || { lat: 28.1235, lng: -15.4363 };
+      addMarker({ ...data, coordinates: coords });
+      toast({ type: "success", message: "Dirección creada" });
+      setIsCreating(false);
     }
-    if (data.CP && data.CP.trim().length > 0) {
-      // Acepta "35005" o "35005 Las Palmas ..."
-      const cpPattern = /^\d{5}(?:[\s-].+)?$/;
-      if (!cpPattern.test(data.CP.trim())) {
-        errs.CP = "El CP debe comenzar con 5 dígitos (p.ej. 35005 o 35005 Ciudad)";
-      }
-    }
-    return errs;
-  }, [form]);
-
-  // Mantener errores y anuncio sincronizados en vivo
-  useEffect(() => {
-    if (!editingId) return;
-    const errs = computeErrors(form);
-    setErrors(errs);
-    setAnnounce(Object.keys(errs).length ? "Hay errores en el formulario" : "");
-  }, [form, editingId, computeErrors]);
-
-  const isDirty = () =>
-    form.name !== originalForm.name ||
-    form.description !== originalForm.description ||
-    form.address !== originalForm.address ||
-    form.CP !== originalForm.CP ||
-    editedGroup !== originalGroup ||
-    editedTags !== originalTags;
-
-  const openEdit = (m: (typeof markers)[number]) => {
-    const init = { name: m.name || "", description: m.description || "", address: m.address || "", CP: m.CP || "" };
-    const groupInit = m.group || DEFAULT_GROUP;
-    const tagsInit = (m.tags || []).join(", ");
-    
-    setEditingId(m.id);
-    setForm(init);
-    setOriginalForm(init);
-    setEditedGroup(groupInit);
-    setOriginalGroup(groupInit);
-    setEditedTags(tagsInit);
-    setOriginalTags(tagsInit);
-    setErrors({});
-    setAnnounce("");
-    // focus se gestionará en el render con autoFocus
   };
 
-  const requestClose = async () => {
-    if (isDirty()) {
-      const confirmed = await showConfirm({
-        title: "Cambios sin guardar",
-        message: "Tienes cambios sin guardar. ¿Deseas cerrar sin guardar?",
-        confirmText: "Cerrar sin guardar",
-        cancelText: "Continuar editando",
-        variant: "warning",
-      });
-      
-      if (!confirmed) return;
-    }
-    setEditingId(null);
-  };
-
-  const saveEdit = () => {
-    if (!editingId) return;
-    const errs = computeErrors();
-    if (Object.keys(errs).length > 0) {
-      // Enfocar primer error
-      setTimeout(() => {
-        const firstError = document.querySelector("[data-error='true']") as HTMLElement | null;
-        firstError?.focus?.();
-      }, 0);
-      return;
-    }
-    
-    // Procesar grupo y tags
-    const finalGroup = editedGroup.trim() || DEFAULT_GROUP;
-    const finalTags = editedTags
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t !== "");
-    
-    updateMarker(editingId, { 
-      ...form,
-      group: finalGroup,
-      tags: finalTags.length > 0 ? finalTags : undefined,
-    });
-    setEditingId(null);
-    toast({ type: "success", message: "Dirección actualizada" });
+  const onAddClick = () => {
+    setIsCreating(true);
   };
 
   return (
@@ -544,7 +473,11 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
             })
             .map(([groupName, items]) => (
               <details key={groupName} open className="mb-3">
-                <summary className="cursor-pointer font-bold text-lg text-gray-100 hover:text-white mb-2 select-none">
+                <summary className="cursor-pointer font-bold text-lg text-gray-100 hover:text-white mb-2 select-none flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: getGroupColor(groupName) }}
+                  />
                   {groupName} ({groupStats[groupName] || 0})
                 </summary>
                 <ul className="space-y-3 ml-2">
@@ -669,7 +602,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
                           </button>
                           <button
                             className="text-gray-300 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-500"
-                            onClick={() => openEdit(m)}
+                            onClick={() => setEditingId(m.id)}
                             title="Editar"
                           >
                             Editar
@@ -696,7 +629,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
       <div className="mt-4 pt-4 border-t border-gray-700">
         <button
           className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-2"
-          onClick={onAddClick}
+          onClick={() => setIsCreating(true)}
         >
           + Añadir Nueva Dirección
         </button>
@@ -716,157 +649,20 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
         </div>
       </div>
 
-      {/* Modal de edición */}
-      {editingId && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="edit-title"
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.stopPropagation();
-              requestClose();
-            }
-          }}
-        >
-          <FocusTrap
-            active={!!editingId}
-            focusTrapOptions={{
-              initialFocus: "#edit-name-input",
-              returnFocusOnDeactivate: true,
-              escapeDeactivates: false,
-              clickOutsideDeactivates: true,
-              allowOutsideClick: true,
-            }}
-          >
-            <div className="w-full max-w-md bg-gray-800 text-white rounded-lg p-4 border border-gray-700 shadow-lg" onClick={(e) => e.stopPropagation()}>
-              <h3 id="edit-title" className="text-xl font-semibold mb-2">Editar dirección</h3>
-              <p className="sr-only" aria-live="assertive">{announce}</p>
-
-              <label className="block text-sm mb-2">
-                Nombre
-                <input
-                  id="edit-name-input"
-                  className={`mt-1 w-full p-2 rounded bg-gray-700 border ${errors.name ? "border-red-500" : "border-gray-600"} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-                  placeholder="Ej.: Ayuntamiento de Las Palmas de Gran Canaria"
-                  value={form.name}
-                  data-error={!!errors.name}
-                  aria-invalid={!!errors.name}
-                  aria-describedby={errors.name ? "error-name" : undefined}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                />
-                {errors.name && <span id="error-name" className="text-red-400 text-xs">{errors.name}</span>}
-              </label>
-
-              <label className="block text-sm mb-2">
-                Descripción
-                <textarea
-                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Ej.: Sede principal del Ayuntamiento"
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                />
-              </label>
-
-              <label className="block text-sm mb-2">
-                Dirección
-                <input
-                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Ej.: Calle León y Castillo, 270"
-                  value={form.address}
-                  onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                />
-              </label>
-
-              <label className="block text-sm mb-2">
-                CP
-                <input
-                  className={`mt-1 w-full p-2 rounded bg-gray-700 border ${errors.CP ? "border-red-500" : "border-gray-600"} focus:ring-2 focus:ring-blue-500 focus:outline-none`}
-                  placeholder="Ej.: 35005 o 35005 Las Palmas de Gran Canaria"
-                  value={form.CP}
-                  data-error={!!errors.CP}
-                  aria-invalid={!!errors.CP}
-                  aria-describedby={errors.CP ? "error-cp" : undefined}
-                  onChange={(e) => setForm((f) => ({ ...f, CP: e.target.value }))}
-                />
-                {errors.CP && <span id="error-cp" className="text-red-400 text-xs">{errors.CP}</span>}
-              </label>
-
-              {/* Grupo/Carpeta (con autocompletado) */}
-              <label className="block text-sm mb-2">
-                Carpeta
-                <input
-                  type="text"
-                  list="groups-edit-list"
-                  value={editedGroup}
-                  onChange={(e) => setEditedGroup(e.target.value)}
-                  placeholder="Ej: Trabajo, Farmacias, Restaurantes..."
-                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-                <datalist id="groups-edit-list">
-                  {uniqueGroups.map((g) => (
-                    <option key={g} value={g} />
-                  ))}
-                </datalist>
-                <p className="mt-1 text-xs text-gray-400">
-                  Escribe un nombre nuevo o selecciona uno existente
-                </p>
-              </label>
-
-              {/* Tags/Etiquetas con vista previa */}
-              <label className="block text-sm mb-4">
-                Etiquetas
-                <input
-                  type="text"
-                  value={editedTags}
-                  onChange={(e) => setEditedTags(e.target.value)}
-                  placeholder="Ej: wifi, terraza, parking"
-                  className="mt-1 w-full p-2 rounded bg-gray-700 border border-gray-600 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  Separa las etiquetas con comas
-                </p>
-                {/* Vista previa de pills en tiempo real */}
-                {editedTags.trim() && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {editedTags
-                      .split(",")
-                      .map((t) => t.trim())
-                      .filter((t) => t !== "")
-                      .map((tag, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-block bg-gray-600 text-gray-200 text-xs px-2 py-0.5 rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                  </div>
-                )}
-              </label>
-
-              <div className="flex justify-end gap-2">
-                <button
-                  className="px-4 py-2 rounded border border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  onClick={requestClose}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold disabled:opacity-60 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  onClick={saveEdit}
-                  disabled={Object.keys(errors).length > 0 || form.name.trim().length === 0}
-                >
-                  Guardar
-                </button>
-              </div>
-            </div>
-          </FocusTrap>
-        </div>
-      )}
+      {/* Modal de edición / creación */}
+      <LocationModal
+        isOpen={!!editingId || isCreating}
+        onClose={() => {
+          setEditingId(null);
+          setIsCreating(false);
+        }}
+        onSave={handleSaveLocation}
+        initialData={editingLocation}
+        defaultCoordinates={mapCenter || { lat: 28.1235, lng: -15.4363 }}
+      />
     </aside>
   );
 };
 
 export default Sidebar;
+

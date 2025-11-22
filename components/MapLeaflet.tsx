@@ -4,8 +4,9 @@ import "leaflet/dist/leaflet.css"; // estilos de Leaflet solo en el cliente
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap, CircleMarker } from "react-leaflet";
 import { type FC, Fragment, useEffect, useId, useState, useRef } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
-import AddMarkerModal from "./AddMarkerModal";
+import LocationModal from "./LocationModal";
 import L from "leaflet";
+import { getGroupColor } from "@/lib/colors";
 
 // Asegurar iconos por defecto de Leaflet desde /public
 L.Icon.Default.mergeOptions({
@@ -16,6 +17,33 @@ L.Icon.Default.mergeOptions({
 
 const DEFAULT_CENTER: [number, number] = [28.1235, -15.4363]; // Las Palmas de Gran Canaria, como ejemplo
 const DEFAULT_ZOOM = 12;
+
+/**
+ * Genera un icono de marcador con SVG coloreado dinámicamente
+ * @param color - Color hex del marcador (ej: "#ef4444")
+ * @returns L.DivIcon con SVG personalizado
+ */
+function createColoredMarkerIcon(color: string): L.DivIcon {
+  const svgIcon = `
+    <svg width="30" height="42" viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg">
+      <path 
+        d="M15 0C6.716 0 0 6.716 0 15c0 8.284 15 27 15 27s15-18.716 15-27C30 6.716 23.284 0 15 0z" 
+        fill="${color}" 
+        stroke="#ffffff" 
+        stroke-width="2"
+      />
+      <circle cx="15" cy="15" r="5" fill="#ffffff" />
+    </svg>
+  `;
+  
+  return L.divIcon({
+    html: svgIcon,
+    className: 'custom-marker-icon', // Clase para estilos adicionales si necesario
+    iconSize: [30, 42],
+    iconAnchor: [15, 42], // Punto del icono que corresponde a la posición del marcador
+    popupAnchor: [0, -42], // Punto desde donde se abre el popup
+  });
+}
 
 function InvalidateOnSidebarChange({ open }: { open?: boolean }) {
   const map = useMap();
@@ -134,13 +162,7 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
     setModalOpen(true);
   };
 
-  const handleModalConfirm = (data: {
-    name: string;
-    address: string;
-    description: string;
-    CP: string;
-    coordinates: { lat: number; lng: number };
-  }) => {
+  const handleModalConfirm = (data: any) => {
     const id = addMarker(data);
     selectMarker(id);
     setModalOpen(false);
@@ -156,11 +178,11 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
 
   return (
     <>
-      <AddMarkerModal
+      <LocationModal
         isOpen={modalOpen}
-        coordinates={pendingCoordinates}
-        onConfirm={handleModalConfirm}
-        onCancel={handleModalCancel}
+        onClose={handleModalCancel}
+        onSave={handleModalConfirm}
+        defaultCoordinates={pendingCoordinates || undefined}
       />
       <MapContainer
         key={mapKey}
@@ -181,10 +203,15 @@ const MapLeaflet: FC<MapLeafletProps> = ({ sidebarOpen }) => {
 
       {markers.map((m) => {
         const selectMarkerFn = useMapStore.getState().selectMarker;
+        // Obtener color dinámico basado en el grupo
+        const markerColor = getGroupColor(m.group || 'Inbox');
+        const markerIcon = createColoredMarkerIcon(markerColor);
+        
         return (
           <Fragment key={m.id}>
             <Marker
               position={[m.coordinates.lat, m.coordinates.lng]}
+              icon={markerIcon}
               zIndexOffset={selectedId === m.id ? 1000 : 0}
               eventHandlers={{
                 click: () => {

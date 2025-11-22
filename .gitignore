@@ -44,7 +44,7 @@ next-env.d.ts
 *.txt
 
 # Ignorar todos los archivos .md
-*.md
+# *.md
 
 # Excepción: NO ignorar el README.md
 !README.md
