@@ -41,6 +41,7 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [showSuggest, setShowSuggest] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [onlyCenter, setOnlyCenter] = useState(false); // preferencia: solo centrar
+  const [openGroup, setOpenGroup] = useState<string | null>(null); // Estado para acordeón
 
   // Store global (Zustand)
   const markers = useMapStore((s) => s.markers);
@@ -472,8 +473,18 @@ const Sidebar: FC<SidebarProps> = ({ isOpen, onClose }) => {
               return a.localeCompare(b);
             })
             .map(([groupName, items]) => (
-              <details key={groupName} open className="mb-3">
-                <summary className="cursor-pointer font-bold text-lg text-gray-100 hover:text-white mb-2 select-none flex items-center gap-2">
+              <details
+                key={groupName}
+                open={openGroup === groupName}
+                className="mb-3"
+              >
+                <summary
+                  className="cursor-pointer font-bold text-lg text-gray-100 hover:text-white mb-2 select-none flex items-center gap-2"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setOpenGroup(openGroup === groupName ? null : groupName);
+                  }}
+                >
                   <div
                     className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: getGroupColor(groupName) }}

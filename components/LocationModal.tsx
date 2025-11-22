@@ -34,8 +34,10 @@ const LocationModal: FC<LocationModalProps> = ({
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
   const [CP, setCP] = useState("");
-  const [group, setGroup] = useState(DEFAULT_GROUP);
+  const [group, setGroup] = useState<string>(DEFAULT_GROUP);
   const [tagsInput, setTagsInput] = useState("");
+  const [lat, setLat] = useState<number | string>("");
+  const [lng, setLng] = useState<number | string>("");
   
   // Errores
   const [errors, setErrors] = useState<{ name?: string; CP?: string }>({});
@@ -55,6 +57,8 @@ const LocationModal: FC<LocationModalProps> = ({
         setCP(initialData.CP || "");
         setGroup(initialData.group || DEFAULT_GROUP);
         setTagsInput((initialData.tags || []).join(", "));
+        setLat(initialData.coordinates.lat);
+        setLng(initialData.coordinates.lng);
       } else {
         // Modo Creación
         setName("");
@@ -63,6 +67,13 @@ const LocationModal: FC<LocationModalProps> = ({
         setCP("");
         setGroup(DEFAULT_GROUP);
         setTagsInput("");
+        if (defaultCoordinates) {
+          setLat(defaultCoordinates.lat);
+          setLng(defaultCoordinates.lng);
+        } else {
+          setLat("");
+          setLng("");
+        }
       }
       setErrors({});
     }
@@ -104,7 +115,10 @@ const LocationModal: FC<LocationModalProps> = ({
       CP: CP.trim(),
       group: group.trim() || DEFAULT_GROUP,
       tags: finalTags,
-      coordinates: displayCoords, // Pasar coordenadas si es necesario (útil para creación)
+      coordinates: {
+        lat: typeof lat === "number" ? lat : parseFloat(lat as string) || 0,
+        lng: typeof lng === "number" ? lng : parseFloat(lng as string) || 0,
+      },
     });
     onClose();
   };
@@ -129,20 +143,33 @@ const LocationModal: FC<LocationModalProps> = ({
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            {/* Coordenadas (solo lectura) */}
-            {displayCoords && (
-              <div>
+            {/* Coordenadas (Editables) */}
+            <div className="flex gap-2">
+              <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Coordenadas
+                  Latitud
                 </label>
                 <input
-                  type="text"
-                  value={`${displayCoords.lat.toFixed(5)}, ${displayCoords.lng.toFixed(5)}`}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-700 text-gray-400 text-sm focus:outline-none"
+                  type="number"
+                  step="any"
+                  value={lat}
+                  onChange={(e) => setLat(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
               </div>
-            )}
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Longitud
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  value={lng}
+                  onChange={(e) => setLng(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-600 rounded bg-gray-700 text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
 
             {/* Nombre */}
             <div>

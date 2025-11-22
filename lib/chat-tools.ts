@@ -13,6 +13,7 @@ export interface ToolDefinition {
       type: string;
       description: string;
       enum?: string[];
+      items?: { type: string };
     }>;
     required: string[];
   };
@@ -149,6 +150,35 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
         },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "modify_location",
+    description: "Modifica el grupo, etiquetas o descripción de una ubicación existente. Usa esta herramienta cuando el usuario quiera organizar sus marcadores (ej: 'Mueve el Mercadona a Favoritos', 'Añade etiqueta wifi a la biblioteca').",
+    parameters: {
+      type: "object",
+      properties: {
+        targetName: {
+          type: "string",
+          description: "Nombre de la ubicación a editar (se buscará por coincidencia aproximada)",
+        },
+        newGroup: {
+          type: "string",
+          description: "Nuevo nombre del grupo/carpeta (opcional)",
+        },
+        newTags: {
+          type: "array",
+          description: "Lista de nuevas etiquetas a añadir (opcional)",
+          items: {
+            type: "string",
+          },
+        },
+        description: {
+          type: "string",
+          description: "Nueva descripción para la ubicación (opcional)",
+        },
+      },
+      required: ["targetName"],
     },
   },
 ];

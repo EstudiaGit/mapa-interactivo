@@ -20,6 +20,11 @@ function convertToolsToFunctionDeclarations(): FunctionDeclaration[] {
             type: value.type.toUpperCase() as any,
             description: value.description,
           };
+          if (value.items) {
+            acc[key].items = {
+              type: value.items.type.toUpperCase() as any,
+            };
+          }
           return acc;
         },
         {} as any,

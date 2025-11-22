@@ -298,6 +298,17 @@ export async function executeServerAction(
         };
       }
 
+      case "modify_location": {
+        const { targetName, newGroup, newTags, description } = parameters;
+        
+        // El servidor no modifica el estado (localStorage), solo valida y pasa la acción al cliente
+        return {
+          success: true,
+          data: { targetName, newGroup, newTags, description },
+          message: `Solicitud de modificación para "${targetName}" recibida`,
+        };
+      }
+
       default:
         return {
           success: false,

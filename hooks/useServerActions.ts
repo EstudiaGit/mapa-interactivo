@@ -16,6 +16,8 @@ export function useServerActions() {
   const removeMarker = useMapStore((s) => s.removeMarker);
   const setCenter = useMapStore((s) => s.setCenter);
   const setZoom = useMapStore((s) => s.setZoom);
+  const updateMarker = useMapStore((s) => s.updateMarker);
+  const markers = useMapStore((s) => s.markers);
   const toast = useToastStore((s) => s.enqueue);
 
   /**
@@ -86,6 +88,47 @@ export function useServerActions() {
           return true;
         }
 
+        case "modify_location": {
+          const { targetName, newGroup, newTags, description } = parameters;
+
+          // Buscar marcador por nombre (case-insensitive)
+          const target = markers.find(
+            (m) => m.name.toLowerCase() === targetName.toLowerCase()
+          );
+
+          if (!target) {
+            toast({
+              type: "error",
+              message: `🤖 No encontré "${targetName}" para editar`,
+              timeout: 4000,
+            });
+            return false;
+          }
+
+          // Preparar actualizaciones
+          const updates: Partial<AddressEntry> = {};
+          if (newGroup) updates.group = newGroup;
+          if (description) updates.description = description;
+          
+          // Lógica de tags: añadir a los existentes
+          if (newTags && Array.isArray(newTags)) {
+            const currentTags = target.tags || [];
+            // Unir y eliminar duplicados
+            const mergedTags = Array.from(new Set([...currentTags, ...newTags]));
+            updates.tags = mergedTags;
+          }
+
+          // Aplicar cambios
+          updateMarker(target.id, updates);
+
+          toast({
+            type: "success",
+            message: `🤖 IA actualizó: ${target.name}`,
+            timeout: 3000,
+          });
+          return true;
+        }
+
         case "list_markers":
         case "search_location": {
           // Estas acciones solo retornan datos, no modifican el estado
@@ -98,7 +141,7 @@ export function useServerActions() {
           return false;
       }
     },
-    [addMarker, removeMarker, setCenter, setZoom, toast]
+    [addMarker, removeMarker, updateMarker, markers, setCenter, setZoom, toast]
   );
 
   /**
